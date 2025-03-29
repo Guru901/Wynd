@@ -1,6 +1,7 @@
 use std::{
-    cell::{RefCell, RefMut},
+    cell::{Ref, RefCell, RefMut},
     rc::Rc,
+    sync::Arc,
 };
 
 use futures::{SinkExt, StreamExt, stream::SplitSink};
@@ -55,14 +56,13 @@ impl Wynd {
 
                 let (sender, mut receiver) = ws_stream.split();
 
-                ws_conn.borrow_mut().sender = Some(sender);
+                ws_conn.borrow_mut().sender = Some(Rc::new(RefCell::new(sender)));
 
                 while let Some(msg) = receiver.next().await {
                     match msg {
                         Ok(Message::Text(text)) => {
                             let event = WebSocketMessageEvent { data: text };
-                            let mut conn = ws_conn.borrow_mut();
-                            (conn.on_message_cl)(event, conn);
+                            (ws_conn.borrow_mut().on_message_cl)(event, ws_conn.borrow_mut());
                         }
                         Ok(Message::Binary(bin)) => {
                             println!("Received binary message: {:?}", bin);
@@ -84,32 +84,47 @@ impl Wynd {
     }
 }
 
-#[derive(Debug, Clone)]
 pub struct WebSocketConn {
-    on_message_cl: fn(WebSocketMessageEvent, RefMut<'_, WebSocketConn>),
-    sender: Option<SplitSink<WebSocketStream<TcpStream>, Message>>,
+    on_message_cl: Arc<dyn Fn(WebSocketMessageEvent, RefMut<'_, Self>) + Send + Sync>,
+    sender: Option<Rc<RefCell<SplitSink<WebSocketStream<TcpStream>, Message>>>>,
+}
+
+impl Clone for WebSocketConn {
+    fn clone(&self) -> Self {
+        Self {
+            on_message_cl: Arc::clone(&self.on_message_cl),
+            sender: self.sender.clone(), // Rc<RefCell<...>> implements Clone
+        }
+    }
 }
 
 impl WebSocketConn {
     fn new() -> Self {
         WebSocketConn {
-            on_message_cl: |_, _| {},
+            on_message_cl: Arc::new(|_, _| {}),
             sender: None,
         }
     }
-    pub fn on_message(&mut self, cl: fn(WebSocketMessageEvent, RefMut<'_, WebSocketConn>)) {
-        self.on_message_cl = cl;
+
+    pub fn on_message<F>(&mut self, cl: F)
+    where
+        F: Fn(WebSocketMessageEvent, RefMut<'_, Self>) + Send + Sync + 'static,
+    {
+        self.on_message_cl = Arc::new(cl);
     }
 
-    pub async fn send(self, data: &str) {
-        self.sender
-            .unwrap()
-            .send(Message::Text(data.to_string()))
-            .await
-            .unwrap();
+    pub async fn send(&self, data: &str) {
+        let clone = self.clone();
+
+        if let Some(sender) = clone.sender {
+            sender
+                .borrow_mut()
+                .send(Message::Text(data.to_string()))
+                .await
+                .unwrap();
+        }
     }
 }
-
 #[derive(Debug)]
 pub struct WebSocketMessageEvent {
     pub data: String,
