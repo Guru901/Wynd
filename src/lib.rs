@@ -5,10 +5,7 @@ use std::{
 
 use futures::{SinkExt, StreamExt, stream::SplitSink};
 use tokio::net::{TcpListener, TcpStream};
-use tokio_tungstenite::{
-    WebSocketStream, accept_async,
-    tungstenite::{self, protocol::Message},
-};
+use tokio_tungstenite::{WebSocketStream, accept_async, tungstenite::protocol::Message};
 
 pub struct Wynd {
     port: u16,
@@ -84,7 +81,6 @@ impl Wynd {
     }
 }
 
-#[derive(Debug, Clone)]
 pub struct WebSocketConn {
     on_message_cl: fn(WebSocketMessageEvent, RefMut<'_, WebSocketConn>),
     sender: Option<SplitSink<WebSocketStream<TcpStream>, Message>>,
