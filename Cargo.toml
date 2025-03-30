@@ -11,3 +11,4 @@ repository = "https://github.com/guru901/wynd"
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = "0.15"
 futures = "0.3"
+uuid = { version = "1", features = ["v4"] }

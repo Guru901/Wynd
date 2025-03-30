@@ -7,6 +7,7 @@ use futures::{
 };
 use tokio::net::TcpStream;
 use tokio_tungstenite::{WebSocketStream, tungstenite::protocol::Message};
+use uuid::Uuid;
 
 pub struct WebSocketConn {
     pub(crate) on_message_cl:
@@ -15,6 +16,7 @@ pub struct WebSocketConn {
     pub(crate) on_binary_cl:
         Arc<dyn Fn(WebSocketBinaryMessageEvent, MutexGuard<'_, Self>) + Send + Sync>,
     pub(crate) on_close_cl: Arc<dyn Fn() + Send + Sync>,
+    pub id: String,
 }
 
 impl Clone for WebSocketConn {
@@ -24,6 +26,7 @@ impl Clone for WebSocketConn {
             on_binary_cl: Arc::clone(&self.on_binary_cl),
             on_close_cl: Arc::clone(&self.on_close_cl),
             sender: self.sender.clone(),
+            id: self.id.clone(),
         }
     }
 }
@@ -44,6 +47,7 @@ impl WebSocketConn {
             on_binary_cl: Arc::new(|_, _| {}),
             on_close_cl: Arc::new(|| {}),
             sender: None,
+            id: Uuid::new_v4().to_string(),
         }
     }
 
