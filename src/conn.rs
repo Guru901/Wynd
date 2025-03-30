@@ -36,7 +36,7 @@ impl WebSocketConn {
     /// let conn = WebSocketConn::new();
     /// ```
 
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         WebSocketConn {
             on_message_cl: Arc::new(|_, _| {}),
             on_binary_cl: Arc::new(|_, _| {}),
@@ -79,7 +79,7 @@ impl WebSocketConn {
     /// let mut conn = WebSocketConn::new();
     ///
     /// conn.on_binary(|event, conn| {
-    ///     println!("Received message: {}", event.data);
+    ///     println!("Received message: {:?}", event.data);
     /// });
     /// ```
 

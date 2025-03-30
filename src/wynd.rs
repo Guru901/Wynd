@@ -26,7 +26,7 @@ impl Server {
     ///
     /// wynd.on_connection(|mut conn| {
     ///     println!("Client connected");
-    ///     conn.on_message(|_event, conn| {
+    ///     conn.on_text(|_event, conn| {
     ///         let conn = conn.clone();
     ///         tokio::spawn(async move {
     ///             conn.send("hehe").await;
@@ -55,12 +55,13 @@ impl Server {
     ///
     /// wynd.on_connection(|mut conn| {
     ///     println!("Client connected");
-    ///     conn.on_message(|_event, conn| {
+    ///     conn.on_text(|_event, conn| {
     ///         let conn = conn.clone();
     ///         tokio::spawn(async move {
     ///             conn.send("hehe").await;
     ///         });
     ///     });
+    /// });
     ///```
 
     pub fn on_connection(&mut self, cl: fn(MutexGuard<'_, WebSocketConn>)) {
@@ -71,14 +72,16 @@ impl Server {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```no_run
     /// use wynd::wynd::Server;
     ///
+    /// #[tokio::main]
+    /// async fn main() {
     /// let mut wynd = Server::new(8080);
     ///
     /// wynd.on_connection(|mut conn| {
     ///     println!("Client connected");
-    ///     conn.on_message(|_event, conn| {
+    ///     conn.on_text(|_event, conn| {
     ///         let conn = conn.clone();
     ///         tokio::spawn(async move {
     ///             conn.send("hehe").await;
@@ -87,6 +90,7 @@ impl Server {
     ///});
     ///
     /// wynd.listen().await.unwrap();
+    /// }
     /// ```
 
     pub async fn listen(&self) -> Result<(), String> {
