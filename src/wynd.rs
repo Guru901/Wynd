@@ -141,7 +141,11 @@ impl Server {
                         }
                         Ok(Message::Ping(_)) => {}
                         Ok(Message::Pong(_)) => {}
-                        Ok(Message::Close(_)) => break,
+                        Ok(Message::Close(_)) => {
+                            let on_close_cl = ws_conn.lock().await.on_close_cl.clone();
+
+                            on_close_cl();
+                        }
                         Err(e) => {
                             println!("Error processing message: {}", e);
                             break;

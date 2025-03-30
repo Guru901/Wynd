@@ -14,6 +14,7 @@ pub struct WebSocketConn {
     pub(crate) sender: Option<Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>>,
     pub(crate) on_binary_cl:
         Arc<dyn Fn(WebSocketBinaryMessageEvent, MutexGuard<'_, Self>) + Send + Sync>,
+    pub(crate) on_close_cl: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl Clone for WebSocketConn {
@@ -21,6 +22,7 @@ impl Clone for WebSocketConn {
         Self {
             on_message_cl: Arc::clone(&self.on_message_cl),
             on_binary_cl: Arc::clone(&self.on_binary_cl),
+            on_close_cl: Arc::clone(&self.on_close_cl),
             sender: self.sender.clone(), // Rc<RefCell<...>> implements Clone
         }
     }
@@ -40,6 +42,7 @@ impl WebSocketConn {
         WebSocketConn {
             on_message_cl: Arc::new(|_, _| {}),
             on_binary_cl: Arc::new(|_, _| {}),
+            on_close_cl: Arc::new(|| {}),
             sender: None,
         }
     }
@@ -88,6 +91,27 @@ impl WebSocketConn {
         F: Fn(WebSocketBinaryMessageEvent, MutexGuard<'_, Self>) + Send + Sync + 'static,
     {
         self.on_binary_cl = Arc::new(cl);
+    }
+
+    /// Sets a callback to be called when a connection is closed.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use wynd::conn::WebSocketConn;
+    ///
+    /// let mut conn = WebSocketConn::new();
+    ///
+    /// conn.on_close(|| {
+    ///     println!("Connection closed");
+    /// });
+    /// ```
+
+    pub fn on_close<F>(&mut self, cl: F)
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_close_cl = Arc::new(cl);
     }
 
     /// Sends a message to the client.
