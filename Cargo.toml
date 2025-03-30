@@ -1,8 +1,9 @@
 [package]
 name = "wynd"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
-description = "Reserved for a future WebSocket library"
+description = "An attempt to make a websocket server in rust"
+authors = ["guru901"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/guru901/wynd"
 
