@@ -10,14 +10,17 @@ use tokio_tungstenite::{WebSocketStream, tungstenite::protocol::Message};
 
 pub struct WebSocketConn {
     pub(crate) on_message_cl:
-        Arc<dyn Fn(WebSocketMessageEvent, MutexGuard<'_, Self>) + Send + Sync>,
+        Arc<dyn Fn(WebSocketTextMessageEvent, MutexGuard<'_, Self>) + Send + Sync>,
     pub(crate) sender: Option<Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>>,
+    pub(crate) on_binary_cl:
+        Arc<dyn Fn(WebSocketBinaryMessageEvent, MutexGuard<'_, Self>) + Send + Sync>,
 }
 
 impl Clone for WebSocketConn {
     fn clone(&self) -> Self {
         Self {
             on_message_cl: Arc::clone(&self.on_message_cl),
+            on_binary_cl: Arc::clone(&self.on_binary_cl),
             sender: self.sender.clone(), // Rc<RefCell<...>> implements Clone
         }
     }
@@ -36,11 +39,12 @@ impl WebSocketConn {
     pub(crate) fn new() -> Self {
         WebSocketConn {
             on_message_cl: Arc::new(|_, _| {}),
+            on_binary_cl: Arc::new(|_, _| {}),
             sender: None,
         }
     }
 
-    /// Sets a callback to be called when a message is received.
+    /// Sets a callback to be called when a text message is received.
     ///
     /// The callback is called with the an event containing the received data.
     ///
@@ -51,16 +55,39 @@ impl WebSocketConn {
     ///
     /// let mut conn = WebSocketConn::new();
     ///
-    /// conn.on_message(|event, conn| {
+    /// conn.on_text(|event, conn| {
     ///     println!("Received message: {}", event.data);
     /// });
     /// ```
 
-    pub fn on_message<F>(&mut self, cl: F)
+    pub fn on_text<F>(&mut self, cl: F)
     where
-        F: Fn(WebSocketMessageEvent, MutexGuard<'_, Self>) + Send + Sync + 'static,
+        F: Fn(WebSocketTextMessageEvent, MutexGuard<'_, Self>) + Send + Sync + 'static,
     {
         self.on_message_cl = Arc::new(cl);
+    }
+
+    /// Sets a callback to be called when a binary message is received.
+    ///
+    /// The callback is called with the an event containing the received data.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use wynd::conn::WebSocketConn;
+    ///
+    /// let mut conn = WebSocketConn::new();
+    ///
+    /// conn.on_binary(|event, conn| {
+    ///     println!("Received message: {}", event.data);
+    /// });
+    /// ```
+
+    pub fn on_binary<F>(&mut self, cl: F)
+    where
+        F: Fn(WebSocketBinaryMessageEvent, MutexGuard<'_, Self>) + Send + Sync + 'static,
+    {
+        self.on_binary_cl = Arc::new(cl);
     }
 
     /// Sends a message to the client.
@@ -90,6 +117,11 @@ impl WebSocketConn {
     }
 }
 #[derive(Debug)]
-pub struct WebSocketMessageEvent {
+pub struct WebSocketTextMessageEvent {
     pub data: String,
+}
+
+#[derive(Debug)]
+pub struct WebSocketBinaryMessageEvent {
+    pub data: Vec<u8>,
 }

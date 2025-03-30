@@ -7,7 +7,7 @@ use futures::{
 use tokio::net::TcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
 
-use crate::conn::{WebSocketConn, WebSocketMessageEvent};
+use crate::conn::{WebSocketBinaryMessageEvent, WebSocketConn, WebSocketTextMessageEvent};
 
 pub struct Server {
     port: u16,
@@ -122,14 +122,18 @@ impl Server {
                 while let Some(msg) = receiver.next().await {
                     match msg {
                         Ok(Message::Text(text)) => {
-                            let event = WebSocketMessageEvent { data: text };
+                            let event = WebSocketTextMessageEvent { data: text };
                             let on_message_cl = ws_conn.lock().await.on_message_cl.clone();
                             let ws_conn_guard = ws_conn.lock().await;
 
                             (on_message_cl)(event, ws_conn_guard);
                         }
                         Ok(Message::Binary(bin)) => {
-                            println!("Received binary message: {:?}", bin);
+                            let event = WebSocketBinaryMessageEvent { data: bin };
+                            let on_binary_cl = ws_conn.lock().await.on_binary_cl.clone();
+                            let ws_conn_guard = ws_conn.lock().await;
+
+                            (on_binary_cl)(event, ws_conn_guard);
                         }
                         Ok(Message::Ping(_)) => {}
                         Ok(Message::Pong(_)) => {}
