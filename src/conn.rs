@@ -24,6 +24,15 @@ impl Clone for WebSocketConn {
 }
 
 impl WebSocketConn {
+    /// Creates a new WebSocket connection.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use wynd::conn::WebSocketConn;
+    /// let conn = WebSocketConn::new();
+    /// ```
+
     pub(crate) fn new() -> Self {
         WebSocketConn {
             on_message_cl: Arc::new(|_, _| {}),
@@ -31,12 +40,41 @@ impl WebSocketConn {
         }
     }
 
+    /// Sets a callback to be called when a message is received.
+    ///
+    /// The callback is called with the an event containing the received data.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use wynd::conn::WebSocketConn;
+    ///
+    /// let mut conn = WebSocketConn::new();
+    ///
+    /// conn.on_message(|event, conn| {
+    ///     println!("Received message: {}", event.data);
+    /// });
+    /// ```
+
     pub fn on_message<F>(&mut self, cl: F)
     where
         F: Fn(WebSocketMessageEvent, MutexGuard<'_, Self>) + Send + Sync + 'static,
     {
         self.on_message_cl = Arc::new(cl);
     }
+
+    /// Sends a message to the client.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use wynd::conn::WebSocketConn;
+    ///
+    /// let mut conn = WebSocketConn::new();
+    /// async move {
+    ///     conn.send("Hello, world!").await;
+    /// };
+    /// ```
 
     pub async fn send(&self, data: &str) {
         let clone = self.clone();
