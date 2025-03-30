@@ -23,7 +23,7 @@ impl Clone for WebSocketConn {
             on_message_cl: Arc::clone(&self.on_message_cl),
             on_binary_cl: Arc::clone(&self.on_binary_cl),
             on_close_cl: Arc::clone(&self.on_close_cl),
-            sender: self.sender.clone(), // Rc<RefCell<...>> implements Clone
+            sender: self.sender.clone(),
         }
     }
 }
@@ -112,6 +112,26 @@ impl WebSocketConn {
         F: Fn() + Send + Sync + 'static,
     {
         self.on_close_cl = Arc::new(cl);
+    }
+
+    /// Forces the connection to close.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use wynd::conn::WebSocketConn;
+    ///
+    /// let mut conn = WebSocketConn::new();
+    ///
+    /// async move {
+    ///     conn.close().await;
+    /// };
+    /// ```
+
+    pub async fn close(&mut self) {
+        if let Some(sender) = self.sender.clone() {
+            sender.lock().await.close().await.unwrap();
+        }
     }
 
     /// Sends a message to the client.
