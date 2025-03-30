@@ -70,12 +70,12 @@ async fn main() {
 }
 ```
 
-<!-- View more basic examples in [Examples](./examples/) dir. --->
+<!-- View more basic examples in [Examples](./examples/) dir. - -->
 <!-- View full blown code examples [here](https://github.com/Guru901/ripress-examples). --->
 
 ## Documentation
 
-<!-- [Getting Started Guide](https://ripress.netlify.app/getting-started.html) --->
+[Getting Started Guide](./docs/getting-started.md)
 
 ## Changelog
 
