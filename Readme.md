@@ -70,8 +70,9 @@ async fn main() {
 }
 ```
 
-<!-- View more basic examples in [Examples](./examples/) dir. - -->
-<!-- View full blown code examples [here](https://github.com/Guru901/ripress-examples). --->
+<!-- View more basic examples in [Examples]() dir. - -->
+
+View full blown code examples [here](https://github.com/Guru901/wynd-examples).
 
 ## Documentation
 
