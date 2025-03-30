@@ -1,10 +1,10 @@
-use std::{
-    cell::{Ref, RefCell, RefMut},
-    rc::Rc,
-    sync::Arc,
-};
+use std::{rc::Rc, sync::Arc};
 
-use futures::{SinkExt, StreamExt, stream::SplitSink};
+use futures::{
+    SinkExt, StreamExt,
+    lock::{Mutex, MutexGuard},
+    stream::SplitSink,
+};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{
     WebSocketStream, accept_async,
@@ -13,7 +13,7 @@ use tokio_tungstenite::{
 
 pub struct Wynd {
     port: u16,
-    on_connection_cl: fn(RefMut<'_, WebSocketConn>),
+    on_connection_cl: fn(MutexGuard<'_, WebSocketConn>),
 }
 
 impl Wynd {
@@ -24,7 +24,7 @@ impl Wynd {
         }
     }
 
-    pub fn on_connection(&mut self, cl: fn(RefMut<'_, WebSocketConn>)) {
+    pub fn on_connection(&mut self, cl: fn(MutexGuard<'_, WebSocketConn>)) {
         self.on_connection_cl = cl;
     }
 
@@ -42,9 +42,9 @@ impl Wynd {
         while let Ok((stream, _)) = listener.accept().await {
             let on_connection_cl = self.on_connection_cl;
             async move {
-                let ws_conn = Rc::new(RefCell::new(WebSocketConn::new()));
+                let ws_conn = Arc::new(Mutex::new(WebSocketConn::new()));
 
-                (on_connection_cl)(ws_conn.borrow_mut());
+                (on_connection_cl)(ws_conn.lock().await);
 
                 let ws_stream = match accept_async(stream).await {
                     Ok(ws) => ws,
@@ -56,13 +56,16 @@ impl Wynd {
 
                 let (sender, mut receiver) = ws_stream.split();
 
-                ws_conn.borrow_mut().sender = Some(Rc::new(RefCell::new(sender)));
+                ws_conn.lock().await.sender = Some(Arc::new(Mutex::new(sender)));
 
                 while let Some(msg) = receiver.next().await {
                     match msg {
                         Ok(Message::Text(text)) => {
                             let event = WebSocketMessageEvent { data: text };
-                            (ws_conn.borrow_mut().on_message_cl)(event, ws_conn.borrow_mut());
+                            let on_message_cl = ws_conn.lock().await.on_message_cl.clone();
+                            let ws_conn_guard = ws_conn.lock().await;
+
+                            (on_message_cl)(event, ws_conn_guard);
                         }
                         Ok(Message::Binary(bin)) => {
                             println!("Received binary message: {:?}", bin);
@@ -85,8 +88,8 @@ impl Wynd {
 }
 
 pub struct WebSocketConn {
-    on_message_cl: Arc<dyn Fn(WebSocketMessageEvent, RefMut<'_, Self>) + Send + Sync>,
-    sender: Option<Rc<RefCell<SplitSink<WebSocketStream<TcpStream>, Message>>>>,
+    on_message_cl: Arc<dyn Fn(WebSocketMessageEvent, MutexGuard<'_, Self>) + Send + Sync>,
+    sender: Option<Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>>,
 }
 
 impl Clone for WebSocketConn {
@@ -108,7 +111,7 @@ impl WebSocketConn {
 
     pub fn on_message<F>(&mut self, cl: F)
     where
-        F: Fn(WebSocketMessageEvent, RefMut<'_, Self>) + Send + Sync + 'static,
+        F: Fn(WebSocketMessageEvent, MutexGuard<'_, Self>) + Send + Sync + 'static,
     {
         self.on_message_cl = Arc::new(cl);
     }
@@ -118,7 +121,8 @@ impl WebSocketConn {
 
         if let Some(sender) = clone.sender {
             sender
-                .borrow_mut()
+                .lock()
+                .await
                 .send(Message::Text(data.to_string()))
                 .await
                 .unwrap();
