@@ -41,7 +41,7 @@ Or manually add it to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-wynd = "0.1.1"
+wynd = "0.1.2"
 tokio = { version = "1.44.0", features = ["full"] }
 ```
 
