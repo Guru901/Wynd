@@ -9,19 +9,22 @@ The `WebSocketConn` struct represent a client connection. You can apply differen
 ```rust
 use wynd::wynd::Server;
 
-let mut server: Server = Server::new(3000);
+#[tokio::main]
+async fn main() {
 
-server.on_connection(|mut conn| {
+    let mut server: Server = Server::new(3000);
 
-    conn.on_text(|event, conn| {
-        println!("Received message: {}", event.data);
+    server.on_connection(|mut conn| {
+        conn.on_text(|event, conn| {
+            println!("Received message: {}", event.data);
+        });
+
+        conn.on_binary(|event, conn| {
+            println!("Received message: {:?}", event.data);
+        });
     })
 
-    conn.on_binary(|event, conn| {
-        println!("Received message: {:?}", event.data);
-    })
-
-})
+}
 ```
 
 ## Emitting Events
