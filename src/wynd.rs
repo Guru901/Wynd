@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use futures::{
-    SinkExt, StreamExt,
+    StreamExt,
     lock::{Mutex, MutexGuard},
 };
 use tokio::net::TcpListener;
