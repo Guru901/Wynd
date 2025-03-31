@@ -10,8 +10,8 @@ use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
 use crate::conn::{WebSocketBinaryMessageEvent, WebSocketConn, WebSocketTextMessageEvent};
 
 pub struct Server {
-    port: u16,
-    on_connection_cl: fn(MutexGuard<'_, WebSocketConn>),
+    pub(crate) port: u16,
+    pub(crate) on_connection_cl: fn(MutexGuard<'_, WebSocketConn>),
 }
 
 impl Server {
