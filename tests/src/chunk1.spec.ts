@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import WebSocket from "ws";
 
-const WS_URL = "ws://localhost:3000";
+const WS_URL = "ws://localhost:8080";
 const CONNECTION_TIMEOUT = 5000;
 
 function createWebSocket(url: string): Promise<WebSocket> {
@@ -97,6 +97,7 @@ test.describe("WebSocket Basic Connection Tests", () => {
     const connectionPromises = Array.from({ length: 5 }, () =>
       createWebSocket(WS_URL)
     );
+
     const connections = await Promise.all(connectionPromises);
 
     connections.forEach((ws) => {

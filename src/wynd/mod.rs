@@ -2,7 +2,7 @@ use crate::{
     conn::Conn,
     types::{BinaryMessageEvent, CloseEvent, TextMessageEvent, WyndError},
 };
-use futures::StreamExt;
+use futures::{SinkExt, StreamExt};
 use tokio::net::TcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
@@ -42,70 +42,77 @@ impl Wynd {
 
         while let Ok((stream, _)) = listener.accept().await {
             let on_connection_cl = self.on_connection_cl;
-            let mut conn = Conn::new();
+            tokio::spawn(async move {
+                let mut conn = Conn::new();
 
-            on_connection_cl(&mut conn);
+                on_connection_cl(&mut conn);
 
-            let ws_stream = match accept_async(stream).await {
-                Ok(ws) => ws,
-                Err(e) => {
-                    println!("Error during the websocket handshake: {}", e);
-                    return Err(e.to_string());
-                }
-            };
-
-            let (sender, mut receiver) = ws_stream.split();
-
-            (conn.on_open_cl)().await;
-            conn.sender = Some(sender);
-
-            while let Some(msg) = receiver.next().await {
-                match msg {
-                    Ok(Message::Text(text)) => {
-                        let event = TextMessageEvent::new(text.to_string());
-                        (conn.on_text_message_cl)(event).await;
+                let ws_stream = match accept_async(stream).await {
+                    Ok(ws) => ws,
+                    Err(e) => {
+                        println!("Error during the websocket handshake: {}", e);
+                        return;
                     }
-                    Ok(Message::Binary(bin)) => {
-                        let event = BinaryMessageEvent::new(bin.to_vec());
-                        (conn.on_binary_message_cl)(event).await
-                    }
-                    Ok(Message::Ping(_)) => {
-                        todo!("Ping")
-                    }
-                    Ok(Message::Pong(_)) => {
-                        todo!("Pong")
-                    }
-                    Ok(Message::Close(e)) => {
-                        let e = match e {
-                            None => {
-                                let event = CloseEvent {
+                };
+
+                let (mut sender, mut receiver) = ws_stream.split();
+
+                (conn.on_open_cl)().await;
+                conn.sender = Some(sender);
+
+                // SAFETY: We immediately take a mutable reference when needed below via conn.sender.as_mut()
+                while let Some(msg) = receiver.next().await {
+                    match msg {
+                        Ok(Message::Text(text)) => {
+                            let event = TextMessageEvent::new(text.to_string());
+                            (conn.on_text_message_cl)(event).await;
+                        }
+                        Ok(Message::Binary(bin)) => {
+                            let event = BinaryMessageEvent::new(bin.to_vec());
+                            (conn.on_binary_message_cl)(event).await
+                        }
+                        Ok(Message::Ping(payload)) => {
+                            if let Some(sink) = conn.sender.as_mut() {
+                                // Reply with Pong to keep the connection alive
+                                if let Err(e) = sink.send(Message::Pong(payload)).await {
+                                    println!("Error sending Pong: {}", e);
+                                    break;
+                                }
+                            }
+                        }
+                        Ok(Message::Pong(_)) => {
+                            // No-op; could update heartbeat if we track it
+                        }
+                        Ok(Message::Close(e)) => {
+                            let e = match e {
+                                None => CloseEvent {
                                     code: 1000,
                                     reason: "Normal closure".to_string(),
-                                };
-
-                                event
-                            }
-                            Some(e) => {
-                                let event = CloseEvent {
+                                },
+                                Some(e) => CloseEvent {
                                     code: u16::from(e.code),
                                     reason: e.reason.to_string(),
-                                };
+                                },
+                            };
 
-                                event
+                            // Echo a Close frame back per RFC 6455 to complete the handshake
+                            if let Some(sink) = conn.sender.as_mut() {
+                                let _ = sink.send(Message::Close(None)).await;
                             }
-                        };
 
-                        (conn.on_close_cl)(e).await;
-                    }
-                    Ok(Message::Frame(_)) => {
-                        todo!("Frame")
-                    }
-                    Err(e) => {
-                        println!("Error processing message: {}", e);
-                        break;
+                            (conn.on_close_cl)(e).await;
+                            break;
+                        }
+                        Ok(Message::Frame(_)) => {
+                            // Not exposed by tungstenite in non-raw mode; ignore
+                        }
+                        Err(e) => {
+                            println!("Error processing message: {}", e);
+                            break;
+                        }
                     }
                 }
-            }
+            });
         }
 
         Ok(())
