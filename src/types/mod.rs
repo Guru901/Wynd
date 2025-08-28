@@ -72,6 +72,16 @@ impl Default for CloseEvent {
     }
 }
 
+impl Display for CloseEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "CloseEvent {{ code: {}, reason: {} }}",
+            self.code, self.reason
+        )
+    }
+}
+
 /// Represents an error event.
 ///
 /// ## Fields

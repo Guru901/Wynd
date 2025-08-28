@@ -6,7 +6,10 @@ use crate::{
 };
 use futures::{SinkExt, StreamExt};
 use tokio::net::TcpListener;
-use tokio_tungstenite::{accept_async, tungstenite::Message};
+use tokio_tungstenite::{
+    accept_async,
+    tungstenite::{Message, protocol::frame::CloseFrame, protocol::frame::coding::CloseCode},
+};
 
 /// The Wynd struct is the core of Wynd, providing a simple interface for creating Websocket servers. It follows an WS-RPC pattern, allowing you to define methods that can be called by clients and return results.
 pub struct Wynd {
@@ -148,24 +151,30 @@ impl Wynd {
                         Ok(Message::Pong(_)) => {
                             // No-op; could update heartbeat if we track it
                         }
-                        Ok(Message::Close(e)) => {
-                            let e = match e {
-                                None => CloseEvent {
-                                    code: 1000,
-                                    reason: "Normal closure".to_string(),
-                                },
-                                Some(e) => CloseEvent {
-                                    code: u16::from(e.code),
-                                    reason: e.reason.to_string(),
-                                },
+                        Ok(Message::Close(_frame_opt)) => {
+                            // Always normalize to a 1000 Normal Closure with a standard reason
+                            // for user callbacks to keep behavior predictable.
+                            let event = CloseEvent {
+                                code: 1000,
+                                reason: "Normal closure".to_string(),
                             };
 
-                            // Echo a Close frame back per RFC 6455 to complete the handshake
+                            // Reply with our own Normal Closure frame, then flush.
                             if let Some(sink) = conn.sender.as_mut() {
-                                let _ = sink.send(Message::Close(None)).await;
+                                let reply = Some(CloseFrame {
+                                    code: CloseCode::Normal,
+                                    reason: "Normal closure".into(),
+                                });
+
+                                let _ = sink.send(Message::Close(reply)).await;
+                                let _ = SinkExt::flush(sink).await;
                             }
 
-                            (conn.on_close_cl)(e).await;
+                            // Drain until the peer closes the TCP side so that the reply
+                            // close frame is observed client-side before we drop the stream.
+                            while let Some(_next) = receiver.next().await {}
+
+                            (conn.on_close_cl)(event).await;
                             break;
                         }
                         Ok(Message::Frame(_)) => {
