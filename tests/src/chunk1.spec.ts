@@ -1,8 +1,6 @@
 import { test, expect } from "@playwright/test";
 import WebSocket from "ws";
-
-const WS_URL = "ws://localhost:8080";
-const CONNECTION_TIMEOUT = 5000;
+import { CONNECTION_TIMEOUT, WS_URL } from "./shared";
 
 function createWebSocket(url: string): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
