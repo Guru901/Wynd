@@ -9,7 +9,9 @@ async fn main() {
             println!("{}", event.data);
         });
 
-        conn.on_open(|e| {});
+        conn.on_open(|e| {
+            println!("Opened connection");
+        });
 
         conn.on_close(|e| {});
 
@@ -20,8 +22,9 @@ async fn main() {
 
     wynd.on_error(|e| {});
 
-    wynd.listen(3000, || {
-        println!("Server running on port 3000");
+    wynd.listen(3001, || {
+        println!("Server running on port 3001");
     })
-    .await;
+    .await
+    .unwrap();
 }

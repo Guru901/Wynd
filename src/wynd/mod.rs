@@ -2,7 +2,7 @@ use std::f32::consts::E;
 
 use crate::{
     conn::Conn,
-    types::{BinaryMessageEvent, CloseEvent, TextMessageEvent, WyndError},
+    types::{BinaryMessageEvent, CloseEvent, OpenEvent, TextMessageEvent, WyndError},
 };
 use futures::StreamExt;
 use tokio::net::TcpListener;
@@ -56,6 +56,8 @@ impl Wynd {
             };
 
             let (sender, mut receiver) = ws_stream.split();
+
+            (conn.on_open_cl)(OpenEvent {});
 
             conn.sender = Some(sender);
 
