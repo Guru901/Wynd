@@ -1,32 +1,28 @@
-use wynd::wynd::Wynd;
+use wynd::{types::CloseEvent, wynd::Wynd};
 
 #[tokio::main]
 async fn main() {
     let mut wynd = Wynd::new();
 
-    wynd.on_connection(|mut conn| {
-        conn.on_text(move |event| {
+    wynd.on_connection(|conn| {
+        conn.on_text(|event| async move {
             println!("TextData: {}", event.data);
         });
 
-        conn.on_binary(|event| {
+        conn.on_binary(|event| async move {
             println!("BinaryData: {:?}", event.data);
         });
 
-        conn.on_open(|e| {
-            println!("Opened connection, {}", e.id);
-        });
+        conn.on_open(|| async move { println!("Opened connection",) });
 
-        conn.on_close(|e| {
-            println!("Closed connection {} \n {}", e.code, e.reason);
-        });
+        conn.on_close(handler);
 
-        conn.on_error(|e| {});
+        conn.on_error(|_e| async {});
     });
 
     wynd.on_close(|| {});
 
-    wynd.on_error(|e| {});
+    wynd.on_error(|_e| {});
 
     wynd.listen(3001, || {
         println!("Server running on port 3001");
@@ -34,3 +30,5 @@ async fn main() {
     .await
     .unwrap();
 }
+
+async fn handler(_e: CloseEvent) {}

@@ -1,13 +1,10 @@
-use std::f32::consts::E;
-
 use crate::{
     conn::Conn,
-    types::{BinaryMessageEvent, CloseEvent, OpenEvent, TextMessageEvent, WyndError},
+    types::{BinaryMessageEvent, CloseEvent, TextMessageEvent, WyndError},
 };
 use futures::StreamExt;
 use tokio::net::TcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
-use uuid::Uuid;
 
 pub struct Wynd {
     on_connection_cl: fn(&mut Conn),
@@ -46,10 +43,8 @@ impl Wynd {
         while let Ok((stream, _)) = listener.accept().await {
             let on_connection_cl = self.on_connection_cl;
             let mut conn = Conn::new();
-            let id = Uuid::new_v4().to_string();
 
             on_connection_cl(&mut conn);
-            conn.id = id.clone();
 
             let ws_stream = match accept_async(stream).await {
                 Ok(ws) => ws,
@@ -61,27 +56,26 @@ impl Wynd {
 
             let (sender, mut receiver) = ws_stream.split();
 
-            (conn.on_open_cl)(OpenEvent { id: &id });
+            (conn.on_open_cl)().await;
             conn.sender = Some(sender);
 
             while let Some(msg) = receiver.next().await {
                 match msg {
                     Ok(Message::Text(text)) => {
                         let event = TextMessageEvent::new(text.to_string());
-                        let on_message_cl = conn.on_text_message_cl.clone();
-
-                        (on_message_cl)(event);
+                        (conn.on_text_message_cl)(event).await;
                     }
                     Ok(Message::Binary(bin)) => {
-                        let event = BinaryMessageEvent::new(bin);
-                        let on_binary_cl = conn.on_binary_message_cl.clone();
-
-                        (on_binary_cl)(event);
+                        let event = BinaryMessageEvent::new(bin.to_vec());
+                        (conn.on_binary_message_cl)(event).await
                     }
-                    Ok(Message::Ping(_)) => {}
-                    Ok(Message::Pong(_)) => {}
+                    Ok(Message::Ping(_)) => {
+                        todo!("Ping")
+                    }
+                    Ok(Message::Pong(_)) => {
+                        todo!("Pong")
+                    }
                     Ok(Message::Close(e)) => {
-                        let on_close_cl = conn.on_close_cl.clone();
                         let e = match e {
                             None => {
                                 let event = CloseEvent {
@@ -101,9 +95,11 @@ impl Wynd {
                             }
                         };
 
-                        on_close_cl(e);
+                        (conn.on_close_cl)(e).await;
                     }
-                    _ => {}
+                    Ok(Message::Frame(_)) => {
+                        todo!("Frame")
+                    }
                     Err(e) => {
                         println!("Error processing message: {}", e);
                         break;
