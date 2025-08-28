@@ -6,7 +6,7 @@ description = "A simple websocket library for rust."
 license = "MIT"
 authors = ["You guru911u@gmail.com"]
 keywords = ["websocket", "server", "framework", "web"]
-categories = ["web-programming::websocket-server"]
+categories = ["web-programming::websocket"]
 repository = "https://github.com/guru901/wynd"
 
 [dependencies]
