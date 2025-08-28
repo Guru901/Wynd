@@ -8,6 +8,7 @@ use futures::{SinkExt, StreamExt};
 use tokio::net::TcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
+/// The Wynd struct is the core of Wynd, providing a simple interface for creating Websocket servers. It follows an WS-RPC pattern, allowing you to define methods that can be called by clients and return results.
 pub struct Wynd {
     pub(crate) on_connection_cl: fn(&mut Conn),
     pub(crate) on_error_cl: fn(WyndError),
@@ -15,6 +16,14 @@ pub struct Wynd {
 }
 
 impl Wynd {
+    /// Creates a new Wynd instance.
+    /// ## Example
+    ///
+    /// ```
+    /// use wynd::wynd::Wynd
+    ///
+    /// let mut server = Wynd::new();
+    /// ```
     pub fn new() -> Self {
         Self {
             on_connection_cl: |_| {},
@@ -23,17 +32,71 @@ impl Wynd {
         }
     }
 
+    /// Sets the function to be called when a new connection is established.
+    /// ## Example
+    ///
+    /// ```
+    /// use wynd::wynd::Wynd;
+    ///
+    /// let mut server = Wynd::new();
+    ///
+    /// server.on_connection(|conn| {
+    ///     println!("New connection established: {}", conn.id);
+    /// });
+    /// ```
+
     pub fn on_connection(&mut self, on_connection_cl: fn(conn: &mut Conn)) {
         self.on_connection_cl = on_connection_cl;
     }
+
+    /// Sets the function to be called when a connection is closed.
+    /// ## Example
+    ///
+    /// ```
+    /// use wynd::wynd::Wynd;
+    ///
+    /// let mut server = Wynd::new();
+    ///
+    /// server.on_close(|| {
+    ///     println!("Connection closed");
+    /// });
+    /// ```
 
     pub fn on_close(&mut self, on_close_cl: fn()) {
         self.on_close_cl = on_close_cl;
     }
 
+    /// Sets the function to be called when an error occurs.
+    /// ## Example
+    ///
+    /// ```
+    /// use wynd::wynd::Wynd;
+    ///
+    /// let mut server = Wynd::new();
+    ///
+    /// server.on_error(|error| {
+    ///     println!("Error: {}", error);
+    /// });
+    /// ```
+
     pub fn on_error(&mut self, on_error_cl: fn(WyndError)) {
         self.on_error_cl = on_error_cl;
     }
+
+    /// Starts listening for incoming connections on the specified port.
+    /// ## Example
+    ///
+    /// ```
+    /// use wynd::wynd::Wynd;
+    ///
+    /// let mut server = Wynd::new();
+    ///
+    /// server.listen(8080, || {
+    ///     println!("Listening on port 8080");
+    /// })
+    /// .await
+    /// .unwrap();
+    /// ```
 
     pub async fn listen<F: FnOnce()>(&self, port: u16, cb: F) -> Result<(), String> {
         cb();
