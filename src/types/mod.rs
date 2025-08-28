@@ -27,6 +27,8 @@ pub struct ErrorEvent {
     pub message: String,
 }
 
-pub struct OpenEvent {}
+pub struct OpenEvent<'a> {
+    pub id: &'a String,
+}
 
 pub struct WyndError {}

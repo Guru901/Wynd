@@ -5,7 +5,7 @@ async fn main() {
     let mut wynd = Wynd::new();
 
     wynd.on_connection(|mut conn| {
-        conn.on_text(|event| {
+        conn.on_text(move |event| {
             println!("TextData: {}", event.data);
         });
 
@@ -14,7 +14,7 @@ async fn main() {
         });
 
         conn.on_open(|e| {
-            println!("Opened connection");
+            println!("Opened connection, {}", e.id);
         });
 
         conn.on_close(|e| {

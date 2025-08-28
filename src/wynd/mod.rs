@@ -7,6 +7,7 @@ use crate::{
 use futures::StreamExt;
 use tokio::net::TcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
+use uuid::Uuid;
 
 pub struct Wynd {
     on_connection_cl: fn(&mut Conn),
@@ -45,7 +46,10 @@ impl Wynd {
         while let Ok((stream, _)) = listener.accept().await {
             let on_connection_cl = self.on_connection_cl;
             let mut conn = Conn::new();
+            let id = Uuid::new_v4().to_string();
+
             on_connection_cl(&mut conn);
+            conn.id = id.clone();
 
             let ws_stream = match accept_async(stream).await {
                 Ok(ws) => ws,
@@ -57,8 +61,7 @@ impl Wynd {
 
             let (sender, mut receiver) = ws_stream.split();
 
-            (conn.on_open_cl)(OpenEvent {});
-
+            (conn.on_open_cl)(OpenEvent { id: &id });
             conn.sender = Some(sender);
 
             while let Some(msg) = receiver.next().await {

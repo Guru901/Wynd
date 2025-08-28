@@ -6,7 +6,7 @@ use crate::types::{BinaryMessageEvent, CloseEvent, ErrorEvent, OpenEvent, TextMe
 
 pub struct Conn {
     pub(crate) sender: Option<SplitSink<WebSocketStream<TcpStream>, Message>>,
-    id: u64,
+    pub id: String,
     pub(crate) on_open_cl: fn(OpenEvent),
     pub(crate) on_text_message_cl: fn(TextMessageEvent),
     pub(crate) on_binary_message_cl: fn(BinaryMessageEvent),
@@ -22,7 +22,7 @@ impl Conn {
             on_binary_message_cl: |_| {},
             on_close_cl: |_| {},
             on_error_cl: |_| {},
-            id: 0,
+            id: String::new(),
             sender: None,
         }
     }
