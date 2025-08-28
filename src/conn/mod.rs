@@ -1,3 +1,5 @@
+#![warn(missing_docs)]
+
 use futures::stream::SplitSink;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{WebSocketStream, tungstenite::Message};

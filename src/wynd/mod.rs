@@ -1,3 +1,5 @@
+#![warn(missing_docs)]
+
 use crate::{
     conn::Conn,
     types::{BinaryMessageEvent, CloseEvent, TextMessageEvent, WyndError},
