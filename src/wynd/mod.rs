@@ -55,7 +55,7 @@ impl Wynd {
                     }
                 };
 
-                let (mut sender, mut receiver) = ws_stream.split();
+                let (sender, mut receiver) = ws_stream.split();
 
                 (conn.on_open_cl)().await;
                 conn.sender = Some(sender);

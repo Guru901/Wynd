@@ -3,11 +3,23 @@ set -e  # Exit on error
 
 cargo test --all  # Run Rust tests
 
-
-cd ../src
+cd ./src
 touch main.rs
 
 echo '
+
+use wynd::wynd::Wynd;
+
+#[tokio::main]
+async fn main() {
+    let mut wynd = Wynd::new();
+
+    wynd.listen(8080, || {
+        println!("Listening on port 8080");
+    })
+    .await
+    .unwrap()
+}
 
 ' > main.rs
 
