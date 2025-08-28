@@ -5,15 +5,21 @@ async fn main() {
     let mut wynd = Wynd::new();
 
     wynd.on_connection(|mut conn| {
-        conn.on_message(|event| {
-            println!("{}", event.data);
+        conn.on_text(|event| {
+            println!("TextData: {}", event.data);
+        });
+
+        conn.on_binary(|event| {
+            println!("BinaryData: {:?}", event.data);
         });
 
         conn.on_open(|e| {
             println!("Opened connection");
         });
 
-        conn.on_close(|e| {});
+        conn.on_close(|e| {
+            println!("Closed connection {} \n {}", e.code, e.reason);
+        });
 
         conn.on_error(|e| {});
     });

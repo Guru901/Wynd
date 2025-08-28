@@ -65,7 +65,7 @@ impl Wynd {
                 match msg {
                     Ok(Message::Text(text)) => {
                         let event = TextMessageEvent::new(text.to_string());
-                        let on_message_cl = conn.on_message_cl.clone();
+                        let on_message_cl = conn.on_text_message_cl.clone();
 
                         (on_message_cl)(event);
                     }
