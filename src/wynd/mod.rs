@@ -7,9 +7,9 @@ use tokio::net::TcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 pub struct Wynd {
-    on_connection_cl: fn(&mut Conn),
-    on_error_cl: fn(WyndError),
-    on_close_cl: fn(),
+    pub(crate) on_connection_cl: fn(&mut Conn),
+    pub(crate) on_error_cl: fn(WyndError),
+    pub(crate) on_close_cl: fn(),
 }
 
 impl Wynd {
