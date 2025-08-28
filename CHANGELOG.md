@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.1] - 2025-08-28
+
+Fixed bug with wrong error codes
+Added loads of tests
+
 ## [0.2.0] - 2025-08-28
 
 Added multiple connection at once support
