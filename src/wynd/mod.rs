@@ -23,7 +23,7 @@ impl Wynd {
     /// ## Example
     ///
     /// ```
-    /// use wynd::wynd::Wynd
+    /// use wynd::wynd::Wynd;
     ///
     /// let mut server = Wynd::new();
     /// ```
@@ -89,16 +89,20 @@ impl Wynd {
     /// Starts listening for incoming connections on the specified port.
     /// ## Example
     ///
-    /// ```
+    /// ```no_run
     /// use wynd::wynd::Wynd;
     ///
-    /// let mut server = Wynd::new();
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut server = Wynd::new();
     ///
-    /// server.listen(8080, || {
-    ///     println!("Listening on port 8080");
-    /// })
-    /// .await
-    /// .unwrap();
+    ///     server.listen(8080, || {
+    ///         println!("Listening on port 8080");
+    ///     })
+    ///     .await
+    ///     .unwrap();
+    /// }
+    ///
     /// ```
 
     pub async fn listen<F: FnOnce()>(&self, port: u16, cb: F) -> Result<(), String> {
