@@ -1,54 +1,12 @@
 // tests/websocket-messaging.test.ts
 import { test, expect } from "@playwright/test";
 import WebSocket from "ws";
-import { CONNECTION_TIMEOUT, MESSAGE_TIMEOUT, WS_URL } from "./shared";
-
-function createWebSocket(url: string): Promise<WebSocket> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    const timeout = setTimeout(() => {
-      ws.close();
-      reject(new Error("Connection timeout"));
-    }, CONNECTION_TIMEOUT);
-
-    ws.on("open", () => {
-      clearTimeout(timeout);
-      resolve(ws);
-    });
-
-    ws.on("error", (error) => {
-      clearTimeout(timeout);
-      reject(error);
-    });
-  });
-}
-
-function waitForMessage(
-  ws: WebSocket,
-  timeout = MESSAGE_TIMEOUT
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error("Message timeout"));
-    }, timeout);
-
-    ws.once("message", (data) => {
-      clearTimeout(timer);
-      resolve(data.toString());
-    });
-  });
-}
-
-function closeWebSocket(ws: WebSocket): Promise<void> {
-  return new Promise((resolve) => {
-    if (ws.readyState === WebSocket.CLOSED) {
-      resolve();
-      return;
-    }
-    ws.on("close", () => resolve());
-    ws.close();
-  });
-}
+import {
+  createWebSocket,
+  closeWebSocket,
+  WS_URL,
+  waitForMessage,
+} from "./shared";
 
 test.describe("WebSocket Message Sending Tests", () => {
   test("should send and receive text messages", async () => {

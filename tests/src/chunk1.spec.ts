@@ -1,38 +1,6 @@
 import { test, expect } from "@playwright/test";
 import WebSocket from "ws";
-import { CONNECTION_TIMEOUT, WS_URL } from "./shared";
-
-function createWebSocket(url: string): Promise<WebSocket> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    const timeout = setTimeout(() => {
-      ws.close();
-      reject(new Error("Connection timeout"));
-    }, CONNECTION_TIMEOUT);
-
-    ws.on("open", () => {
-      clearTimeout(timeout);
-      resolve(ws);
-    });
-
-    ws.on("error", (error) => {
-      clearTimeout(timeout);
-      reject(error);
-    });
-  });
-}
-
-function closeWebSocket(ws: WebSocket): Promise<void> {
-  return new Promise((resolve) => {
-    if (ws.readyState === WebSocket.CLOSED) {
-      resolve();
-      return;
-    }
-
-    ws.on("close", () => resolve());
-    ws.close();
-  });
-}
+import { closeWebSocket, createWebSocket, WS_URL } from "./shared";
 
 test.describe("WebSocket Basic Connection Tests", () => {
   test("should successfully connect to WebSocket server", async () => {
