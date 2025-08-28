@@ -69,13 +69,12 @@ impl Wynd {
 
                         (on_message_cl)(event);
                     }
-                    // Ok(Message::Binary(bin)) => {
-                    //     let event = BinaryMessageEvent::new(bin);
-                    //     let on_binary_cl = conn.on_binary_cl.clone();
-                    //     let ws_conn_guard = ws_conn.lock().await;
+                    Ok(Message::Binary(bin)) => {
+                        let event = BinaryMessageEvent::new(bin);
+                        let on_binary_cl = conn.on_binary_message_cl.clone();
 
-                    //     (on_binary_cl)(event, ws_conn_guard);
-                    // }
+                        (on_binary_cl)(event);
+                    }
                     Ok(Message::Ping(_)) => {}
                     Ok(Message::Pong(_)) => {}
                     Ok(Message::Close(e)) => {
