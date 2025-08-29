@@ -123,13 +123,15 @@ impl Conn {
         self.on_error_cl = Box::new(move |event| Box::pin(error_cl(event)));
     }
 
+    /// Sends a text frame to the peer. Returns an error if the connection is not open.
     pub async fn send_text(&mut self, text: impl Into<Utf8Bytes>) -> Result<(), String> {
-        if let Some(sink) = self.sender.as_mut() {
-            sink.send(Message::Text(text.into()))
-                .await
-                .map_err(|e| e.to_string())
-        } else {
-            return Err(String::from("No connection found"));
-        }
+        let sink = self
+            .sender
+            .as_mut()
+            .ok_or_else(|| "No active WebSocket sender (connection not open or already closed)".to_string())?;
+        sink.send(Message::Text(text.into()))
+            .await
+            .map_err(|e| e.to_string())
+        // Optionally: sink.flush().await.map_err(|e| e.to_string())
     }
 }
