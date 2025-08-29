@@ -148,9 +148,11 @@ impl Wynd {
 
                 let (sender, mut receiver) = ws_stream.split();
 
+                {
+                    let mut g = conn.lock().await;
+                    g.sender = Some(sender);
+                }
                 (conn.lock().await.on_open_cl)().await;
-                conn.lock().await.sender = Some(sender);
-
                 // SAFETY: We immediately take a mutable reference when needed below via conn.sender.as_mut()
                 while let Some(msg) = receiver.next().await {
                     match msg {
