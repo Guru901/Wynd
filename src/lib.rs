@@ -13,7 +13,7 @@
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), String> {
 //! let mut server = Wynd::new();
-//! server.on_connection(|conn: &mut Conn| {
+//! server.on_connection(|mut conn| async move {
 //!     conn.on_open(|| async {});
 //!     conn.on_text(|_msg| async {});
 //! });

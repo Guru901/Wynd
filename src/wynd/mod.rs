@@ -1,10 +1,12 @@
 #![warn(missing_docs)]
 
+use std::{pin::Pin, process::Output, sync::Arc};
+
 use crate::{
     conn::Conn,
     types::{BinaryMessageEvent, CloseEvent, TextMessageEvent, WyndError},
 };
-use futures::{SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt, lock::Mutex};
 use tokio::net::TcpListener;
 use tokio_tungstenite::{
     accept_async,
@@ -13,7 +15,8 @@ use tokio_tungstenite::{
 
 /// The Wynd struct is the core of Wynd, providing a simple interface for creating Websocket servers. It follows an WS-RPC pattern, allowing you to define methods that can be called by clients and return results.
 pub struct Wynd {
-    pub(crate) on_connection_cl: fn(&mut Conn),
+    pub(crate) on_connection_cl:
+        Option<Arc<dyn Fn(Conn) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>>,
     pub(crate) on_error_cl: fn(WyndError),
     pub(crate) on_close_cl: fn(),
 }
@@ -29,7 +32,7 @@ impl Wynd {
     /// ```
     pub fn new() -> Self {
         Self {
-            on_connection_cl: |_| {},
+            on_connection_cl: None,
             on_close_cl: || {},
             on_error_cl: |_| {},
         }
@@ -43,13 +46,20 @@ impl Wynd {
     ///
     /// let mut server = Wynd::new();
     ///
-    /// server.on_connection(|conn| {
+    /// server.on_connection(|conn| async move {
     ///     println!("New connection established: {}", conn.id);
     /// });
     /// ```
 
-    pub fn on_connection(&mut self, on_connection_cl: fn(conn: &mut Conn)) {
-        self.on_connection_cl = on_connection_cl;
+    pub fn on_connection<F, Fut>(&mut self, on_connection_cl: F)
+    where
+        F: Fn(Conn) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.on_connection_cl = Some(Arc::new(move |conn| {
+            let fut = on_connection_cl(conn);
+            Box::pin(async move { fut.await }) as Pin<Box<dyn Future<Output = ()> + Send>>
+        }));
     }
 
     /// Sets the function to be called when a connection is closed.
@@ -105,19 +115,28 @@ impl Wynd {
     ///
     /// ```
 
-    pub async fn listen<F: FnOnce()>(&self, port: u16, cb: F) -> Result<(), String> {
+    pub async fn listen<F: FnOnce()>(self, port: u16, cb: F) -> Result<(), String> {
         cb();
 
         let listener = TcpListener::bind(format!("0.0.0.0:{port}"))
             .await
             .map_err(|e| e.to_string())?;
 
-        while let Ok((stream, _)) = listener.accept().await {
-            let on_connection_cl = self.on_connection_cl;
-            tokio::spawn(async move {
-                let mut conn = Conn::new();
+        let on_connection_cl = match &self.on_connection_cl {
+            Some(cl) => Arc::clone(cl),
+            None => {
+                return Err("on_connection_cl is not set".to_string());
+            }
+        };
 
-                on_connection_cl(&mut conn);
+        while let Ok((stream, _)) = listener.accept().await {
+            let on_connection_cl = Arc::clone(&on_connection_cl);
+
+            tokio::spawn(async move {
+                let conn_for_callback = Conn::new();
+                on_connection_cl(conn_for_callback).await;
+
+                let conn = Arc::new(Mutex::new(Conn::new()));
 
                 let ws_stream = match accept_async(stream).await {
                     Ok(ws) => ws,
@@ -129,22 +148,22 @@ impl Wynd {
 
                 let (sender, mut receiver) = ws_stream.split();
 
-                (conn.on_open_cl)().await;
-                conn.sender = Some(sender);
+                (conn.lock().await.on_open_cl)().await;
+                conn.lock().await.sender = Some(sender);
 
                 // SAFETY: We immediately take a mutable reference when needed below via conn.sender.as_mut()
                 while let Some(msg) = receiver.next().await {
                     match msg {
                         Ok(Message::Text(text)) => {
                             let event = TextMessageEvent::new(text.to_string());
-                            (conn.on_text_message_cl)(event).await;
+                            (conn.lock().await.on_text_message_cl)(event).await;
                         }
                         Ok(Message::Binary(bin)) => {
                             let event = BinaryMessageEvent::new(bin.to_vec());
-                            (conn.on_binary_message_cl)(event).await
+                            (conn.lock().await.on_binary_message_cl)(event).await
                         }
                         Ok(Message::Ping(payload)) => {
-                            if let Some(sink) = conn.sender.as_mut() {
+                            if let Some(sink) = conn.lock().await.sender.as_mut() {
                                 // Reply with Pong to keep the connection alive
                                 if let Err(e) = sink.send(Message::Pong(payload)).await {
                                     println!("Error sending Pong: {}", e);
@@ -164,7 +183,7 @@ impl Wynd {
                             };
 
                             // Reply with our own Normal Closure frame, then flush.
-                            if let Some(sink) = conn.sender.as_mut() {
+                            if let Some(sink) = conn.lock().await.sender.as_mut() {
                                 let reply = Some(CloseFrame {
                                     code: CloseCode::Normal,
                                     reason: "Normal closure".into(),
@@ -178,7 +197,7 @@ impl Wynd {
                             // close frame is observed client-side before we drop the stream.
                             while let Some(_next) = receiver.next().await {}
 
-                            (conn.on_close_cl)(event).await;
+                            (conn.lock().await.on_close_cl)(event).await;
                             break;
                         }
                         Ok(Message::Frame(_)) => {

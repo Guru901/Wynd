@@ -1,8 +1,12 @@
 #![warn(missing_docs)]
 
+use futures::SinkExt;
 use futures::stream::SplitSink;
 use tokio::net::TcpStream;
-use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
+use tokio_tungstenite::{
+    WebSocketStream,
+    tungstenite::{Message, Utf8Bytes},
+};
 use uuid::Uuid;
 
 use crate::types::{BinaryMessageEvent, CloseEvent, ErrorEvent, TextMessageEvent};
@@ -117,5 +121,15 @@ impl Conn {
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
         self.on_error_cl = Box::new(move |event| Box::pin(error_cl(event)));
+    }
+
+    pub async fn send_text(&mut self, text: impl Into<Utf8Bytes>) -> Result<(), String> {
+        if let Some(sink) = self.sender.as_mut() {
+            sink.send(Message::Text(text.into()))
+                .await
+                .map_err(|e| e.to_string())
+        } else {
+            return Err(String::from("No connection found"));
+        }
     }
 }

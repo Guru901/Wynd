@@ -14,6 +14,10 @@ use wynd::wynd::Wynd;
 async fn main() {
     let mut wynd = Wynd::new();
 
+    wynd.on_connection(|conn| async move {
+        println!("New connection established: {}", conn.id);
+    });
+
     wynd.listen(8080, || {
         println!("Listening on port 8080");
     })
