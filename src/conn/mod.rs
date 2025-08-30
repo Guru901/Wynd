@@ -50,12 +50,12 @@ impl Connection {
         self.addr
     }
 
-    pub fn on_open<F, Fut>(&self, handler: F)
+    pub async fn on_open<F, Fut>(&self, handler: F)
     where
         F: Fn(Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        let mut open_handler = futures::executor::block_on(self.open_handler.lock());
+        let mut open_handler = self.open_handler.lock().await;
         *open_handler = Some(Box::new(move |handle| Box::pin(handler(handle))));
 
         // Create connection handle and start the connection lifecycle
@@ -89,8 +89,11 @@ impl Connection {
         F: Fn(String, Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        let mut message_handler = futures::executor::block_on(self.message_handler.lock());
-        *message_handler = Some(Box::new(move |msg, handle| Box::pin(handler(msg, handle))));
+        let message_handler = Arc::clone(&self.message_handler);
+        tokio::spawn(async move {
+            let mut lock = message_handler.lock().await;
+            *lock = Some(Box::new(move |msg, handle| Box::pin(handler(msg, handle))));
+        });
     }
 
     pub fn on_close<F, Fut>(&self, handler: F)
@@ -98,8 +101,11 @@ impl Connection {
         F: Fn(Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        let mut close_handler = futures::executor::block_on(self.close_handler.lock());
-        *close_handler = Some(Box::new(move |handle| Box::pin(handler(handle))));
+        let close_handler = Arc::clone(&self.close_handler);
+        tokio::spawn(async move {
+            let mut lock = close_handler.lock().await;
+            *lock = Some(Box::new(move |handle| Box::pin(handler(handle))));
+        });
     }
 
     async fn message_loop(

@@ -75,6 +75,14 @@ impl Wynd {
 
         let connection = Connection::new(connection_id, websocket, addr);
 
+        // Initialize the connection with a default open handler to keep it alive
+        connection
+            .on_open(|_handle| async move {
+                // Default handler that keeps the connection alive
+                // The connection will be managed by the message loop
+            })
+            .await;
+
         if let Some(ref handler) = self.connection_handler {
             handler(connection).await;
         }

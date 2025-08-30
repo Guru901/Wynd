@@ -16,6 +16,11 @@ async fn main() {
 
     wynd.on_connection(|conn| async move {
         println!("New connection established: {}", conn.id);
+        
+        // Initialize the connection
+        conn.on_open(|handle| async move {
+            println!("Connection {} is now open", handle.id());
+        }).await;
     });
 
     wynd.listen(8080, || {
