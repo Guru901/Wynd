@@ -4,7 +4,7 @@ use futures::{SinkExt, StreamExt};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
-use crate::wynd::{BoxFuture, ConnectionId};
+use crate::wynd::BoxFuture;
 
 pub struct Connection {
     id: u64,
