@@ -71,8 +71,17 @@ impl Wynd {
         stream: TcpStream,
         addr: SocketAddr,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let websocket = accept_async(stream).await?;
-
+        use std::time::Duration;
+        use tokio::time::timeout;
+        let websocket = match timeout(Duration::from_secs(10), accept_async(stream)).await {
+            Ok(res) => res?, // tungstenite::Result<_>
+            Err(_) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "WebSocket handshake timed out",
+                ).into())
+            }
+        };
         // Get next connection ID
         let mut id_counter = self.next_connection_id.lock().await;
         let connection_id = *id_counter;
