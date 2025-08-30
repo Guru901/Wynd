@@ -2,25 +2,27 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::Mutex;
+use tokio::time::timeout;
 use tokio_tungstenite::accept_async;
 
 use crate::conn::Connection;
 
-pub(crate) type ConnectionId = u64;
+pub(crate) type ConnectionId = AtomicU64;
 pub(crate) type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
 pub struct Wynd {
     connection_handler: Option<Box<dyn Fn(Connection) -> BoxFuture<()> + Send + Sync>>,
-    next_connection_id: Arc<Mutex<ConnectionId>>,
+    next_connection_id: ConnectionId,
 }
 
 impl Wynd {
     pub fn new() -> Self {
         Self {
             connection_handler: None,
-            next_connection_id: Arc::new(Mutex::new(0)),
+            next_connection_id: ConnectionId::new(0),
         }
     }
 
@@ -71,22 +73,18 @@ impl Wynd {
         stream: TcpStream,
         addr: SocketAddr,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        use std::time::Duration;
-        use tokio::time::timeout;
         let websocket = match timeout(Duration::from_secs(10), accept_async(stream)).await {
             Ok(res) => res?, // tungstenite::Result<_>
             Err(_) => {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
                     "WebSocket handshake timed out",
-                ).into())
+                )
+                .into());
             }
         };
         // Get next connection ID
-        let mut id_counter = self.next_connection_id.lock().await;
-        let connection_id = *id_counter;
-        *id_counter += 1;
-        drop(id_counter);
+        let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
 
         let connection = Connection::new(connection_id, websocket, addr);
 

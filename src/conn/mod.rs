@@ -7,7 +7,7 @@ use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 use crate::wynd::{BoxFuture, ConnectionId};
 
 pub struct Connection {
-    id: ConnectionId,
+    id: u64,
     websocket: Arc<Mutex<WebSocketStream<TcpStream>>>,
     addr: SocketAddr,
     open_handler:
@@ -19,19 +19,14 @@ pub struct Connection {
         Arc<Mutex<Option<Box<dyn Fn(Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>>>,
 }
 
-#[derive(Clone)]
 pub struct ConnectionHandle {
-    id: ConnectionId,
+    id: u64,
     websocket: Arc<Mutex<WebSocketStream<TcpStream>>>,
     addr: SocketAddr,
 }
 
 impl Connection {
-    pub(crate) fn new(
-        id: ConnectionId,
-        websocket: WebSocketStream<TcpStream>,
-        addr: SocketAddr,
-    ) -> Self {
+    pub(crate) fn new(id: u64, websocket: WebSocketStream<TcpStream>, addr: SocketAddr) -> Self {
         Self {
             id,
             websocket: Arc::new(Mutex::new(websocket)),
@@ -42,8 +37,8 @@ impl Connection {
         }
     }
 
-    pub fn id(&self) -> ConnectionId {
-        self.id
+    pub fn id(&self) -> &u64 {
+        &self.id
     }
 
     pub fn addr(&self) -> SocketAddr {
@@ -154,7 +149,7 @@ impl Connection {
 }
 
 impl ConnectionHandle {
-    pub fn id(&self) -> ConnectionId {
+    pub fn id(&self) -> u64 {
         self.id
     }
 
