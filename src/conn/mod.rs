@@ -75,7 +75,8 @@ impl Connection {
             }
 
             // Start message loop
-            Self::message_loop(handle_clone, message_handler_clone, close_handler_clone).await;
+            Self::message_loop_no_self(handle_clone, message_handler_clone, close_handler_clone)
+                .await;
         });
     }
 
@@ -103,7 +104,7 @@ impl Connection {
         });
     }
 
-    async fn message_loop(
+    async fn message_loop_no_self(
         handle: Arc<ConnectionHandle>,
         message_handler: Arc<
             Mutex<
@@ -145,6 +146,51 @@ impl Connection {
                 _ => {}
             }
         }
+    }
+
+    async fn message_loop_with_self(&self) {
+        loop {
+            let msg = {
+                let mut ws = self.websocket.lock().await;
+                ws.next().await
+            };
+
+            let handle = Arc::new(ConnectionHandle {
+                id: self.id,
+                websocket: Arc::clone(&self.websocket),
+                addr: self.addr,
+            });
+
+            match msg {
+                Some(Ok(Message::Text(text))) => {
+                    let handler = self.message_handler.lock().await;
+                    if let Some(ref h) = *handler {
+                        h(text.to_string(), Arc::clone(&handle)).await;
+                    }
+                }
+                Some(Ok(Message::Ping(_))) => {}
+                Some(Ok(Message::Pong(_))) => {}
+                Some(Ok(Message::Binary(_))) => {}
+                Some(Ok(Message::Close(_))) | None => {
+                    // Connection closed
+                    let handler = self.close_handler.lock().await;
+                    if let Some(ref h) = *handler {
+                        h(Arc::clone(&handle)).await;
+                    }
+                    break;
+                }
+                Some(Err(e)) => {
+                    eprintln!("WebSocket error: {}", e);
+                    break;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    pub(crate) async fn start_loop(&self) {
+        self.on_open(|_handle| async move {}).await;
+        self.message_loop_with_self().await;
     }
 }
 
