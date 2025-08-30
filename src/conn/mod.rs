@@ -132,9 +132,9 @@ impl Connection {
                         h(text.to_string(), Arc::clone(&handle)).await;
                     }
                 }
-                Some(Ok(Message::Binary(_))) => {
-                    // Handle binary messages if needed
-                }
+                Some(Ok(Message::Ping(_))) => {}
+                Some(Ok(Message::Pong(_))) => {}
+                Some(Ok(Message::Binary(_))) => {}
                 Some(Ok(Message::Close(_))) | None => {
                     // Connection closed
                     let handler = close_handler.lock().await;

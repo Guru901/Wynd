@@ -15,7 +15,7 @@ async fn main() {
     let mut wynd = Wynd::new();
 
     wynd.on_connection(|conn| async move {
-        println!("New connection established: {}", conn.id);
+        println!("New connection established: {}", conn.id());
         
         // Initialize the connection
         conn.on_open(|handle| async move {

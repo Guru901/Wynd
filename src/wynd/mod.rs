@@ -48,16 +48,22 @@ impl Wynd {
 
         let wynd = Arc::new(self);
 
-        while let Ok((stream, addr)) = listener.accept().await {
-            let wynd_clone = Arc::clone(&wynd);
-            tokio::spawn(async move {
-                if let Err(e) = wynd_clone.handle_connection(stream, addr).await {
-                    eprintln!("Error handling connection: {}", e);
+        loop {
+            match listener.accept().await {
+                Ok((stream, addr)) => {
+                    let wynd_clone = Arc::clone(&wynd);
+                    tokio::spawn(async move {
+                        if let Err(e) = wynd_clone.handle_connection(stream, addr).await {
+                            eprintln!("Error handling connection: {}", e);
+                        }
+                    });
                 }
-            });
+                Err(e) => {
+                    eprintln!("accept() failed: {e}. Retrying...");
+                    continue;
+                }
+            }
         }
-
-        Ok(())
     }
 
     async fn handle_connection(

@@ -61,12 +61,13 @@ mod tests {
         OPEN_TX.set(open_tx).ok();
         TEXT_TX.set(text_tx).ok();
 
-        wynd.on_connection(|mut conn| async move {
+        wynd.on_connection(|conn| async move {
             // Configure callbacks to forward signals via channels stored in OnceLock
             conn.on_open(move |_| async move {
                 let sender = OPEN_TX.get().unwrap().clone();
                 let _ = sender.unbounded_send(());
-            });
+            })
+            .await;
 
             conn.on_message(move |evt, _| async move {
                 let sender = TEXT_TX.get().unwrap().clone();
