@@ -1,137 +1,176 @@
-#![warn(missing_docs)]
+use std::{net::SocketAddr, sync::Arc};
 
-use futures::SinkExt;
-use futures::stream::SplitSink;
-use tokio::net::TcpStream;
-use tokio_tungstenite::{
-    WebSocketStream,
-    tungstenite::{Message, Utf8Bytes},
-};
-use uuid::Uuid;
+use futures::{SinkExt, StreamExt};
+use tokio::{net::TcpStream, sync::Mutex};
+use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
-use crate::types::{BinaryMessageEvent, CloseEvent, ErrorEvent, TextMessageEvent};
+use crate::wynd::{BoxFuture, ConnectionId};
 
-/// Represents a single WebSocket connection and its callbacks.
-pub struct Conn {
-    /// Sender half of the WebSocket used to send frames to the client.
-    pub(crate) sender: Option<SplitSink<WebSocketStream<TcpStream>, Message>>,
-    /// Unique identifier for this connection instance.
-    pub id: String,
-    /// Async callback invoked when the connection is opened.
-    pub(crate) on_open_cl: Box<
-        dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> + Send + Sync,
+pub struct Connection {
+    id: ConnectionId,
+    websocket: Arc<Mutex<WebSocketStream<TcpStream>>>,
+    addr: SocketAddr,
+    open_handler:
+        Arc<Mutex<Option<Box<dyn Fn(Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>>>,
+    message_handler: Arc<
+        Mutex<Option<Box<dyn Fn(String, Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>>,
     >,
-    /// Async callback invoked when a text message is received.
-    pub(crate) on_text_message_cl: Box<
-        dyn Fn(TextMessageEvent) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
-            + Send
-            + Sync,
-    >,
-    /// Async callback invoked when a binary message is received.
-    pub(crate) on_binary_message_cl: Box<
-        dyn Fn(
-                BinaryMessageEvent,
-            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
-            + Send
-            + Sync,
-    >,
-    /// Async callback invoked when the connection is closed.
-    pub(crate) on_close_cl: Box<
-        dyn Fn(CloseEvent) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
-            + Send
-            + Sync,
-    >,
-    /// Async callback invoked when an error occurs while handling the connection.
-    pub(crate) on_error_cl: Box<
-        dyn Fn(ErrorEvent) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
-            + Send
-            + Sync,
-    >,
+    close_handler:
+        Arc<Mutex<Option<Box<dyn Fn(Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>>>,
 }
 
-impl Conn {
-    /// Creates a new `Conn` with default no-op callbacks and a new ID.
-    pub fn new() -> Self {
+#[derive(Clone)]
+pub struct ConnectionHandle {
+    id: ConnectionId,
+    websocket: Arc<Mutex<WebSocketStream<TcpStream>>>,
+    addr: SocketAddr,
+}
+
+impl Connection {
+    pub(crate) fn new(
+        id: ConnectionId,
+        websocket: WebSocketStream<TcpStream>,
+        addr: SocketAddr,
+    ) -> Self {
         Self {
-            on_open_cl: Box::new(|| {
-                Box::pin(async {})
-                    as std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
-            }),
-            on_text_message_cl: Box::new(|_| {
-                Box::pin(async {})
-                    as std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
-            }),
-            on_binary_message_cl: Box::new(|_| {
-                Box::pin(async {})
-                    as std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
-            }),
-            on_close_cl: Box::new(|_| {
-                Box::pin(async {})
-                    as std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
-            }),
-            on_error_cl: Box::new(|_| {
-                Box::pin(async {})
-                    as std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
-            }),
-            id: Uuid::new_v4().to_string(),
-            sender: None,
+            id,
+            websocket: Arc::new(Mutex::new(websocket)),
+            addr,
+            open_handler: Arc::new(Mutex::new(None)),
+            message_handler: Arc::new(Mutex::new(None)),
+            close_handler: Arc::new(Mutex::new(None)),
         }
     }
 
-    /// Register an async callback invoked when the connection opens.
-    pub fn on_open<F, Fut>(&mut self, open_cl: F)
-    where
-        F: Fn() -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
-    {
-        self.on_open_cl = Box::new(move || Box::pin(open_cl()));
+    pub fn id(&self) -> ConnectionId {
+        self.id
     }
 
-    /// Register an async callback invoked for each received text message.
-    pub fn on_text<F, Fut>(&mut self, text_cl: F)
-    where
-        F: Fn(TextMessageEvent) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
-    {
-        self.on_text_message_cl = Box::new(move |event| Box::pin(text_cl(event)));
+    pub fn addr(&self) -> SocketAddr {
+        self.addr
     }
 
-    /// Register an async callback invoked for each received binary message.
-    pub fn on_binary<F, Fut>(&mut self, binary_cl: F)
+    pub fn on_open<F, Fut>(&self, handler: F)
     where
-        F: Fn(BinaryMessageEvent) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
+        F: Fn(Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
     {
-        self.on_binary_message_cl = Box::new(move |event| Box::pin(binary_cl(event)));
+        let mut open_handler = futures::executor::block_on(self.open_handler.lock());
+        *open_handler = Some(Box::new(move |handle| Box::pin(handler(handle))));
+
+        // Create connection handle and start the connection lifecycle
+        let handle = Arc::new(ConnectionHandle {
+            id: self.id,
+            websocket: Arc::clone(&self.websocket),
+            addr: self.addr,
+        });
+
+        let open_handler_clone = Arc::clone(&self.open_handler);
+        let message_handler_clone = Arc::clone(&self.message_handler);
+        let close_handler_clone = Arc::clone(&self.close_handler);
+        let handle_clone = Arc::clone(&handle);
+
+        tokio::spawn(async move {
+            // Call open handler
+            {
+                let open_handler = open_handler_clone.lock().await;
+                if let Some(ref handler) = *open_handler {
+                    handler(Arc::clone(&handle_clone)).await;
+                }
+            }
+
+            // Start message loop
+            Self::message_loop(handle_clone, message_handler_clone, close_handler_clone).await;
+        });
     }
 
-    /// Register an async callback invoked when the connection closes.
-    pub fn on_close<F, Fut>(&mut self, close_cl: F)
+    pub fn on_message<F, Fut>(&self, handler: F)
     where
-        F: Fn(CloseEvent) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
+        F: Fn(String, Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
     {
-        self.on_close_cl = Box::new(move |event| Box::pin(close_cl(event)));
+        let mut message_handler = futures::executor::block_on(self.message_handler.lock());
+        *message_handler = Some(Box::new(move |msg, handle| Box::pin(handler(msg, handle))));
     }
 
-    /// Register an async callback invoked when an error occurs.
-    pub fn on_error<F, Fut>(&mut self, error_cl: F)
+    pub fn on_close<F, Fut>(&self, handler: F)
     where
-        F: Fn(ErrorEvent) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
+        F: Fn(Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
     {
-        self.on_error_cl = Box::new(move |event| Box::pin(error_cl(event)));
+        let mut close_handler = futures::executor::block_on(self.close_handler.lock());
+        *close_handler = Some(Box::new(move |handle| Box::pin(handler(handle))));
     }
 
-    /// Sends a text frame to the peer. Returns an error if the connection is not open.
-    pub async fn send_text(&mut self, text: impl Into<Utf8Bytes>) -> Result<(), String> {
-        let sink = self
-            .sender
-            .as_mut()
-            .ok_or_else(|| "No active WebSocket sender (connection not open or already closed)".to_string())?;
-        sink.send(Message::Text(text.into()))
-            .await
-            .map_err(|e| e.to_string())
-        // Optionally: sink.flush().await.map_err(|e| e.to_string())
+    async fn message_loop(
+        handle: Arc<ConnectionHandle>,
+        message_handler: Arc<
+            Mutex<
+                Option<Box<dyn Fn(String, Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>,
+            >,
+        >,
+        close_handler: Arc<
+            Mutex<Option<Box<dyn Fn(Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>>,
+        >,
+    ) {
+        loop {
+            let msg = {
+                let mut ws = handle.websocket.lock().await;
+                ws.next().await
+            };
+
+            match msg {
+                Some(Ok(Message::Text(text))) => {
+                    let handler = message_handler.lock().await;
+                    if let Some(ref h) = *handler {
+                        h(text.to_string(), Arc::clone(&handle)).await;
+                    }
+                }
+                Some(Ok(Message::Binary(_))) => {
+                    // Handle binary messages if needed
+                }
+                Some(Ok(Message::Close(_))) | None => {
+                    // Connection closed
+                    let handler = close_handler.lock().await;
+                    if let Some(ref h) = *handler {
+                        h(Arc::clone(&handle)).await;
+                    }
+                    break;
+                }
+                Some(Err(e)) => {
+                    eprintln!("WebSocket error: {}", e);
+                    break;
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+impl ConnectionHandle {
+    pub fn id(&self) -> ConnectionId {
+        self.id
+    }
+
+    pub fn addr(&self) -> SocketAddr {
+        self.addr
+    }
+
+    pub async fn send_text(&self, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let mut websocket = self.websocket.lock().await;
+        websocket.send(Message::Text(text.into())).await?;
+        Ok(())
+    }
+
+    pub async fn send_binary(&self, data: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
+        let mut websocket = self.websocket.lock().await;
+        websocket.send(Message::Binary(data.into())).await?;
+        Ok(())
+    }
+
+    pub async fn close(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let mut websocket = self.websocket.lock().await;
+        websocket.send(Message::Close(None)).await?;
+        Ok(())
     }
 }
