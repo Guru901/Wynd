@@ -13,7 +13,8 @@ Create a new binary project:
 ```bash
 cargo new wynd-hello --bin
 cd wynd-hello
-cargo add wynd tokio@1 --features tokio/macros,rt-multi-thread
+cargo add wynd
+cargo add tokio@1 --features tokio/macros,rt-multi-thread
 ```
 
 Replace `src/main.rs` with the following minimal example:

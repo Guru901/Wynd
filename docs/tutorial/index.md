@@ -15,7 +15,8 @@ Create a new binary crate and add the necessary dependencies:
 ```bash
 cargo new wynd-chat --bin
 cd wynd-chat
-cargo add wynd tokio@1 --features tokio/macros,rt-multi-thread
+cargo add wynd
+cargo add tokio@1 --features tokio/macros,rt-multi-thread
 ```
 
 ## Step 2: Basic Echo Server
