@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.1] - 2025-08-28
+
+Readme fixed
+
 ## [0.3.0] - 2025-08-28
 
 Slight api change
