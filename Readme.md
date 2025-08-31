@@ -79,7 +79,8 @@ async fn main() {
 ```rust
 use wynd::wynd::Wynd;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() {
@@ -95,7 +96,7 @@ async fn main() {
 
             // Add to chat room
             {
-                let mut clients = clients.lock().unwrap();
+                let mut clients = clients.lock().await;
                 clients.insert(id, Arc::clone(&handle));
             }
 
@@ -128,11 +129,19 @@ async fn broadcast_message(
     message: &str,
     sender_id: u64,
 ) {
-    let clients = clients.lock().unwrap();
-    for (id, handle) in clients.iter() {
-        if *id != sender_id {
-            let _ = handle.send_text(message).await;
-        }
+    // Collect handles to send to, avoiding holding the lock across await
+    let targets: Vec<Arc<wynd::conn::ConnectionHandle>> = {
+        let clients = clients.lock().await;
+        clients
+            .iter()
+            .filter(|(id, _)| **id != sender_id)
+            .map(|(_, handle)| Arc::clone(handle))
+            .collect()
+    };
+
+    // Send messages without holding the lock
+    for handle in targets {
+        let _ = handle.send_text(message).await;
     }
 }
 ```

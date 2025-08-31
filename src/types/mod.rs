@@ -208,23 +208,12 @@ impl CloseEvent {
 }
 
 impl Default for CloseEvent {
-    /// Creates a default close event with normal closure code and empty reason.
     fn default() -> Self {
         Self::new(1000, String::new())
     }
 }
 
 impl Display for CloseEvent {
-    /// Formats the close event for display.
-    ///
-    /// ## Example
-    ///
-    /// ```
-    /// use wynd::types::CloseEvent;
-    ///
-    /// let event = CloseEvent::new(1000, "Normal closure".to_string());
-    /// println!("{}", event); // Prints: "CloseEvent { code: 1000, reason: Normal closure }"
-    /// ```
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -361,16 +350,6 @@ impl Default for WyndError {
 }
 
 impl Display for WyndError {
-    /// Formats the Wynd error for display.
-    ///
-    /// ## Example
-    ///
-    /// ```
-    /// use wynd::types::WyndError;
-    ///
-    /// let err = WyndError::new("Connection failed".to_string());
-    /// println!("{}", err); // Prints: "Connection failed"
-    /// ```
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.inner)
     }

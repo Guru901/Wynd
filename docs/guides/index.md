@@ -43,7 +43,8 @@ Send messages to all connected clients:
 ```rust
 use wynd::wynd::Wynd;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() {
@@ -59,7 +60,7 @@ async fn main() {
 
             // Add to client list
             {
-                let mut clients = clients.lock().unwrap();
+                let mut clients = clients.lock().await;
                 clients.insert(id, Arc::clone(&handle));
             }
 
@@ -89,11 +90,19 @@ async fn broadcast_message(
     message: &str,
     sender_id: u64,
 ) {
-    let clients = clients.lock().unwrap();
-    for (id, handle) in clients.iter() {
-        if *id != sender_id {
-            let _ = handle.send_text(message).await;
-        }
+    // Collect handles to send to, avoiding holding the lock across await
+    let targets: Vec<Arc<wynd::conn::ConnectionHandle>> = {
+        let clients = clients.lock().await;
+        clients
+            .iter()
+            .filter(|(id, _)| **id != sender_id)
+            .map(|(_, handle)| Arc::clone(handle))
+            .collect()
+    };
+
+    // Send messages without holding the lock
+    for handle in targets {
+        let _ = handle.send_text(message).await;
     }
 }
 ```
@@ -127,7 +136,8 @@ Keep track of all active connections:
 
 ```rust
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 struct ConnectionManager {
     connections: Arc<Mutex<HashMap<u64, Arc<wynd::conn::ConnectionHandle>>>>,
@@ -141,23 +151,31 @@ impl ConnectionManager {
     }
 
     async fn add_connection(&self, id: u64, handle: Arc<wynd::conn::ConnectionHandle>) {
-        let mut connections = self.connections.lock().unwrap();
+        let mut connections = self.connections.lock().await;
         connections.insert(id, handle);
         println!("Connection {} added. Total connections: {}", id, connections.len());
     }
 
     async fn remove_connection(&self, id: u64) {
-        let mut connections = self.connections.lock().unwrap();
+        let mut connections = self.connections.lock().await;
         connections.remove(&id);
         println!("Connection {} removed. Total connections: {}", id, connections.len());
     }
 
     async fn broadcast(&self, message: &str, exclude_id: Option<u64>) {
-        let connections = self.connections.lock().unwrap();
-        for (id, handle) in connections.iter() {
-            if exclude_id.is_none() || exclude_id.unwrap() != *id {
-                let _ = handle.send_text(message).await;
-            }
+        // Collect handles to send to, avoiding holding the lock across await
+        let targets: Vec<Arc<wynd::conn::ConnectionHandle>> = {
+            let connections = self.connections.lock().await;
+            connections
+                .iter()
+                .filter(|(id, _)| exclude_id.is_none() || exclude_id.unwrap() != **id)
+                .map(|(_, handle)| Arc::clone(handle))
+                .collect()
+        };
+
+        // Send messages without holding the lock
+        for handle in targets {
+            let _ = handle.send_text(message).await;
         }
     }
 }
@@ -186,7 +204,7 @@ conn.on_text(|msg, handle| async move {
                 let _ = handle.send_text(&format!("Server time: {}", time)).await;
             }
             "/users" => {
-                let count = clients.lock().unwrap().len();
+                let count = clients.lock().await.len();
                 let _ = handle.send_text(&format!("Online users: {}", count)).await;
             }
             "/quit" => {
@@ -307,17 +325,15 @@ async fn efficient_broadcast(
     message: &str,
     exclude_id: Option<u64>,
 ) {
-    let clients = clients.lock().unwrap();
-
-    // Use a vector to avoid holding the lock during sends
-    let targets: Vec<_> = clients
-        .iter()
-        .filter(|(id, _)| exclude_id.is_none() || exclude_id.unwrap() != **id)
-        .map(|(_, handle)| Arc::clone(handle))
-        .collect();
-
-    // Drop the lock before sending
-    drop(clients);
+    // Collect handles to send to, avoiding holding the lock across await
+    let targets: Vec<_> = {
+        let clients = clients.lock().await;
+        clients
+            .iter()
+            .filter(|(id, _)| exclude_id.is_none() || exclude_id.unwrap() != **id)
+            .map(|(_, handle)| Arc::clone(handle))
+            .collect()
+    };
 
     // Send to all targets concurrently
     let futures: Vec<_> = targets
@@ -340,7 +356,8 @@ Manage connections efficiently:
 
 ```rust
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use std::time::{Duration, Instant};
 
 struct ConnectionPool {
@@ -360,7 +377,7 @@ impl ConnectionPool {
     }
 
     async fn add_connection(&self, id: u64, handle: Arc<wynd::conn::ConnectionHandle>) {
-        let mut connections = self.connections.lock().unwrap();
+        let mut connections = self.connections.lock().await;
         connections.insert(id, PooledConnection {
             handle,
             last_activity: Instant::now(),
@@ -368,14 +385,14 @@ impl ConnectionPool {
     }
 
     async fn update_activity(&self, id: u64) {
-        if let Some(conn) = self.connections.lock().unwrap().get_mut(&id) {
+        if let Some(conn) = self.connections.lock().await.get_mut(&id) {
             conn.last_activity = Instant::now();
         }
     }
 
     async fn cleanup_inactive(&self, timeout: Duration) {
         let now = Instant::now();
-        let mut connections = self.connections.lock().unwrap();
+        let mut connections = self.connections.lock().await;
 
         connections.retain(|id, conn| {
             if now.duration_since(conn.last_activity) > timeout {
@@ -434,6 +451,8 @@ Implement basic rate limiting:
 
 ```rust
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use std::time::{Duration, Instant};
 
 struct RateLimiter {
@@ -453,7 +472,7 @@ impl RateLimiter {
 
     fn is_allowed(&self, client_id: u64) -> bool {
         let now = Instant::now();
-        let mut limits = self.limits.lock().unwrap();
+        let mut limits = self.limits.blocking_lock();
 
         let client_limits = limits.entry(client_id).or_insert_with(Vec::new);
 
