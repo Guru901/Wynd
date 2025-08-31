@@ -4,19 +4,35 @@ use futures::{SinkExt, StreamExt};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
-use crate::wynd::BoxFuture;
+use crate::{
+    types::{BinaryMessageEvent, CloseEvent, TextMessageEvent},
+    wynd::BoxFuture,
+};
+
+type CloseHandler = Arc<Mutex<Option<Box<dyn Fn(CloseEvent) -> BoxFuture<()> + Send + Sync>>>>;
+type TextMessageHanlder = Arc<
+    Mutex<
+        Option<Box<dyn Fn(TextMessageEvent, Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>,
+    >,
+>;
+type BinaryMessageHanlder = Arc<
+    Mutex<
+        Option<
+            Box<dyn Fn(BinaryMessageEvent, Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>,
+        >,
+    >,
+>;
+type OpenHandler =
+    Arc<Mutex<Option<Box<dyn Fn(Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>>>;
 
 pub struct Connection {
     id: u64,
     websocket: Arc<Mutex<WebSocketStream<TcpStream>>>,
     addr: SocketAddr,
-    open_handler:
-        Arc<Mutex<Option<Box<dyn Fn(Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>>>,
-    message_handler: Arc<
-        Mutex<Option<Box<dyn Fn(String, Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>>,
-    >,
-    close_handler:
-        Arc<Mutex<Option<Box<dyn Fn(Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>>>,
+    open_handler: OpenHandler,
+    text_message_handler: TextMessageHanlder,
+    binary_message_handler: BinaryMessageHanlder,
+    close_handler: CloseHandler,
 }
 
 pub struct ConnectionHandle {
@@ -32,7 +48,8 @@ impl Connection {
             websocket: Arc::new(Mutex::new(websocket)),
             addr,
             open_handler: Arc::new(Mutex::new(None)),
-            message_handler: Arc::new(Mutex::new(None)),
+            text_message_handler: Arc::new(Mutex::new(None)),
+            binary_message_handler: Arc::new(Mutex::new(None)),
             close_handler: Arc::new(Mutex::new(None)),
         }
     }
@@ -61,7 +78,8 @@ impl Connection {
         });
 
         let open_handler_clone = Arc::clone(&self.open_handler);
-        let message_handler_clone = Arc::clone(&self.message_handler);
+        let text_message_handler_clone = Arc::clone(&self.text_message_handler);
+        let binary_message_handler_clone = Arc::clone(&self.binary_message_handler);
         let close_handler_clone = Arc::clone(&self.close_handler);
         let handle_clone = Arc::clone(&handle);
 
@@ -75,44 +93,56 @@ impl Connection {
             }
 
             // Start message loop
-            Self::message_loop(handle_clone, message_handler_clone, close_handler_clone).await;
+            Self::message_loop(
+                handle_clone,
+                text_message_handler_clone,
+                binary_message_handler_clone,
+                close_handler_clone,
+            )
+            .await;
         });
     }
 
-    pub fn on_message<F, Fut>(&self, handler: F)
+    pub fn on_binary<F, Fut>(&self, handler: F)
     where
-        F: Fn(String, Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
+        F: Fn(BinaryMessageEvent, Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        let message_handler = Arc::clone(&self.message_handler);
+        let binary_message_handler = Arc::clone(&self.binary_message_handler);
         tokio::spawn(async move {
-            let mut lock = message_handler.lock().await;
+            let mut lock = binary_message_handler.lock().await;
+            *lock = Some(Box::new(move |msg, handle| Box::pin(handler(msg, handle))));
+        });
+    }
+    pub fn on_text<F, Fut>(&self, handler: F)
+    where
+        F: Fn(TextMessageEvent, Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        let text_message_handler = Arc::clone(&self.text_message_handler);
+        tokio::spawn(async move {
+            let mut lock = text_message_handler.lock().await;
             *lock = Some(Box::new(move |msg, handle| Box::pin(handler(msg, handle))));
         });
     }
 
     pub fn on_close<F, Fut>(&self, handler: F)
     where
-        F: Fn(Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
+        F: Fn(CloseEvent) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
         let close_handler = Arc::clone(&self.close_handler);
         tokio::spawn(async move {
             let mut lock = close_handler.lock().await;
-            *lock = Some(Box::new(move |handle| Box::pin(handler(handle))));
+            *lock = Some(Box::new(move |event| Box::pin(handler(event))));
         });
     }
 
     async fn message_loop(
         handle: Arc<ConnectionHandle>,
-        message_handler: Arc<
-            Mutex<
-                Option<Box<dyn Fn(String, Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>,
-            >,
-        >,
-        close_handler: Arc<
-            Mutex<Option<Box<dyn Fn(Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>>,
-        >,
+        text_message_handler: TextMessageHanlder,
+        binary_message_handler: BinaryMessageHanlder,
+        close_handler: CloseHandler,
     ) {
         loop {
             let msg = {
@@ -122,19 +152,29 @@ impl Connection {
 
             match msg {
                 Some(Ok(Message::Text(text))) => {
-                    let handler = message_handler.lock().await;
+                    let handler = text_message_handler.lock().await;
                     if let Some(ref h) = *handler {
-                        h(text.to_string(), Arc::clone(&handle)).await;
+                        h(TextMessageEvent::new(text.to_string()), Arc::clone(&handle)).await;
                     }
                 }
                 Some(Ok(Message::Ping(_))) => {}
                 Some(Ok(Message::Pong(_))) => {}
-                Some(Ok(Message::Binary(_))) => {}
-                Some(Ok(Message::Close(_))) | None => {
+                Some(Ok(Message::Binary(data))) => {
+                    let handler = binary_message_handler.lock().await;
+                    if let Some(ref h) = *handler {
+                        h(BinaryMessageEvent::new(data.to_vec()), Arc::clone(&handle)).await;
+                    }
+                }
+                Some(Ok(Message::Close(close_frame))) => {
+                    let close_event = match close_frame {
+                        Some(e) => CloseEvent::new(e.code.into(), e.reason.to_string()),
+                        None => CloseEvent::default(),
+                    };
+
                     // Connection closed
                     let handler = close_handler.lock().await;
                     if let Some(ref h) = *handler {
-                        h(Arc::clone(&handle)).await;
+                        h(close_event).await;
                     }
                     break;
                 }

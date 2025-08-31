@@ -9,19 +9,35 @@ use tokio::time::timeout;
 use tokio_tungstenite::accept_async;
 
 use crate::conn::Connection;
+use crate::types::WyndError;
 
 pub(crate) type ConnectionId = AtomicU64;
 pub(crate) type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
 pub struct Wynd {
     connection_handler: Option<Box<dyn Fn(Connection) -> BoxFuture<()> + Send + Sync>>,
+    error_handler: Option<Box<dyn Fn(WyndError) -> BoxFuture<()> + Send + Sync>>,
+    close_handler: Option<Box<dyn Fn() -> () + Send + Sync + 'static>>,
     next_connection_id: ConnectionId,
+}
+
+impl Drop for Wynd {
+    fn drop(&mut self) {
+        let close_handler = match self.close_handler.as_ref() {
+            None => return,
+            Some(handler) => handler,
+        };
+
+        close_handler();
+    }
 }
 
 impl Wynd {
     pub fn new() -> Self {
         Self {
             connection_handler: None,
+            error_handler: None,
+            close_handler: None,
             next_connection_id: ConnectionId::new(0),
         }
     }
@@ -32,6 +48,21 @@ impl Wynd {
         Fut: Future<Output = ()> + Send + 'static,
     {
         self.connection_handler = Some(Box::new(move |conn| Box::pin(handler(conn))));
+    }
+
+    pub fn on_error<F, Fut>(&mut self, handler: F)
+    where
+        F: Fn(WyndError) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.error_handler = Some(Box::new(move |err| Box::pin(handler(err))));
+    }
+
+    pub fn on_close<F>(&mut self, handler: F)
+    where
+        F: Fn() -> () + Send + Sync + 'static,
+    {
+        self.close_handler = Some(Box::new(move || handler()));
     }
 
     pub async fn listen<F>(
@@ -61,7 +92,17 @@ impl Wynd {
                     });
                 }
                 Err(e) => {
+                    let handler = wynd.error_handler.as_ref();
+
+                    if let Some(handler) = handler {
+                        handler(WyndError::new(e.to_string())).await;
+                    } else {
+                        eprintln!("Error accepting connection: {}", e);
+                    }
+
                     eprintln!("accept() failed: {e}. Retrying...");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+
                     continue;
                 }
             }

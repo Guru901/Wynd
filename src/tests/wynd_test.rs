@@ -69,9 +69,9 @@ mod tests {
             })
             .await;
 
-            conn.on_message(move |evt, _| async move {
+            conn.on_text(move |evt, _| async move {
                 let sender = TEXT_TX.get().unwrap().clone();
-                let _ = sender.unbounded_send(evt);
+                let _ = sender.unbounded_send(evt.data);
             });
         });
 
