@@ -87,12 +87,12 @@ impl Default for TextMessageEvent {
 ///         conn.on_binary(|event, handle| async move {
 ///             println!("Received binary data: {} bytes", event.data.len());
 ///             
-///             // Echo the binary data back
-///             let _ = handle.send_binary(event.data).await;
-///             
-///             // Or process the data
+///             // Process the data before moving it
 ///             if event.data.len() > 1024 {
 ///                 let _ = handle.send_text("Data too large").await;
+///             } else {
+///                 // Echo the binary data back
+///                 let _ = handle.send_binary(event.data).await;
 ///             }
 ///         });
 ///     });

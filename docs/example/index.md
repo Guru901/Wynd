@@ -57,9 +57,8 @@ async fn main() {
         let clients = Arc::clone(&clients);
 
         conn.on_open(|handle| async move {
-            let handle = Arc::new(handle);
+            let handle = Arc::clone(&handle);
             let id = handle.id();
-
             // Add client to the chat room
             {
                 let mut clients = clients.lock().await;
