@@ -47,12 +47,6 @@
 //!             println!("Connection closed: code={}, reason={}", event.code, event.reason);
 //!         });
 //!     });
-//!
-//!     wynd.listen(8080, || {
-//!         println!("Server listening on port 8080");
-//!     })
-//!     .await
-//!     .unwrap();
 //! }
 //! ```
 
@@ -149,12 +143,6 @@ type OpenHandler =
 ///             println!("Connection closed: {}", event.reason);
 ///         });
 ///     });
-///
-///     wynd.listen(8080, || {
-///         println!("Server listening on port 8080");
-///     })
-///     .await
-///     .unwrap();
 /// }
 /// ```
 pub struct Connection {
@@ -226,12 +214,6 @@ pub struct Connection {
 ///             let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
 ///         });
 ///     });
-///
-///     wynd.listen(8080, || {
-///         println!("Server listening on port 8080");
-///     })
-///     .await
-///     .unwrap();
 /// }
 /// ```
 pub struct ConnectionHandle {
@@ -297,12 +279,6 @@ impl Connection {
     ///         
     ///         // Set up handlers...
     ///     });
-    ///
-    ///     wynd.listen(8080, || {
-    ///         println!("Server listening on port 8080");
-    ///     })
-    ///     .await
-    ///     .unwrap();
     /// }
     /// ```
     pub fn id(&self) -> &u64 {
@@ -332,12 +308,6 @@ impl Connection {
     ///         
     ///         // Set up handlers...
     ///     });
-    ///
-    ///     wynd.listen(8080, || {
-    ///         println!("Server listening on port 8080");
-    ///     })
-    ///     .await
-    ///     .unwrap();
     /// }
     /// ```
     pub fn addr(&self) -> SocketAddr {
@@ -379,12 +349,6 @@ impl Connection {
     ///
     ///         // Set up other handlers...
     ///     });
-    ///
-    ///     wynd.listen(8080, || {
-    ///         println!("Server listening on port 8080");
-    ///     })
-    ///     .await
-    ///     .unwrap();
     /// }
     /// ```
     pub async fn on_open<F, Fut>(&self, handler: F)
@@ -458,19 +422,13 @@ impl Connection {
     ///             println!("Received binary data: {} bytes", msg.data.len());
     ///             
     ///             // Echo the binary data back
-    ///             let _ = handle.send_binary(msg.data).await;
+    ///             let _ = handle.send_binary(msg.data.clone()).await;
     ///             
     ///             // Or process the data and send a response
     ///             let response = format!("Processed {} bytes", msg.data.len());
     ///             let _ = handle.send_text(&response).await;
     ///         });
     ///     });
-    ///
-    ///     wynd.listen(8080, || {
-    ///         println!("Server listening on port 8080");
-    ///     })
-    ///     .await
-    ///     .unwrap();
     /// }
     /// ```
     pub fn on_binary<F, Fut>(&self, handler: F)
@@ -531,12 +489,6 @@ impl Connection {
     ///             }
     ///         });
     ///     });
-    ///
-    ///     wynd.listen(8080, || {
-    ///         println!("Server listening on port 8080");
-    ///     })
-    ///     .await
-    ///     .unwrap();
     /// }
     /// ```
     pub fn on_text<F, Fut>(&self, handler: F)
@@ -592,12 +544,6 @@ impl Connection {
     ///             }
     ///         });
     ///     });
-    ///
-    ///     wynd.listen(8080, || {
-    ///         println!("Server listening on port 8080");
-    ///     })
-    ///     .await
-    ///     .unwrap();
     /// }
     /// ```
     pub fn on_close<F, Fut>(&self, handler: F)
@@ -699,12 +645,6 @@ impl ConnectionHandle {
     ///         })
     ///         .await;
     ///     });
-    ///
-    ///     wynd.listen(8080, || {
-    ///         println!("Server listening on port 8080");
-    ///     })
-    ///     .await
-    ///     .unwrap();
     /// }
     /// ```
     pub fn id(&self) -> u64 {
@@ -735,12 +675,6 @@ impl ConnectionHandle {
     ///         })
     ///         .await;
     ///     });
-    ///
-    ///     wynd.listen(8080, || {
-    ///         println!("Server listening on port 8080");
-    ///     })
-    ///     .await
-    ///     .unwrap();
     /// }
     /// ```
     pub fn addr(&self) -> SocketAddr {
@@ -782,12 +716,6 @@ impl ConnectionHandle {
     ///             let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
     ///         });
     ///     });
-    ///
-    ///     wynd.listen(8080, || {
-    ///         println!("Server listening on port 8080");
-    ///     })
-    ///     .await
-    ///     .unwrap();
     /// }
     /// ```
     pub async fn send_text(&self, text: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -832,12 +760,6 @@ impl ConnectionHandle {
     ///             let _ = handle.send_binary(msg.data).await;
     ///         });
     ///     });
-    ///
-    ///     wynd.listen(8080, || {
-    ///         println!("Server listening on port 8080");
-    ///     })
-    ///     .await
-    ///     .unwrap();
     /// }
     /// ```
     pub async fn send_binary(&self, data: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
@@ -883,12 +805,6 @@ impl ConnectionHandle {
     ///             }
     ///         });
     ///     });
-    ///
-    ///     wynd.listen(8080, || {
-    ///         println!("Server listening on port 8080");
-    ///     })
-    ///     .await
-    ///     .unwrap();
     /// }
     /// ```
     pub async fn close(&self) -> Result<(), Box<dyn std::error::Error>> {

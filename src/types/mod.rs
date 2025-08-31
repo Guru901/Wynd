@@ -1,6 +1,6 @@
 #![warn(missing_docs)]
 
-use std::fmt::Display;
+use std::{fmt::Display, ops::Deref};
 
 /// Represents a text message event received from a WebSocket client.
 ///
@@ -32,9 +32,7 @@ use std::fmt::Display;
 ///
 ///     wynd.listen(8080, || {
 ///         println!("Server listening on port 8080");
-///     })
-///     .await
-///     .unwrap();
+///     });
 /// }
 /// ```
 pub struct TextMessageEvent {
@@ -99,9 +97,7 @@ impl Default for TextMessageEvent {
 ///
 ///     wynd.listen(8080, || {
 ///         println!("Server listening on port 8080");
-///     })
-///     .await
-///     .unwrap();
+///     });
 /// }
 /// ```
 pub struct BinaryMessageEvent {
@@ -179,9 +175,7 @@ impl Default for BinaryMessageEvent {
 ///
 ///     wynd.listen(8080, || {
 ///         println!("Server listening on port 8080");
-///     })
-///     .await
-///     .unwrap();
+///     });
 /// }
 /// ```
 pub struct CloseEvent {
@@ -223,71 +217,71 @@ impl Display for CloseEvent {
     }
 }
 
-/// Represents a WebSocket error event.
-///
-/// This event is triggered when an error occurs during WebSocket
-/// communication. It contains information about the error that occurred.
-///
-/// ## Fields
-///
-/// - `message`: A description of the error that occurred
-///
-/// ## Example
-///
-/// ```rust
-/// use wynd::types::ErrorEvent;
-/// use wynd::wynd::Wynd;
-///
-/// #[tokio::main]
-/// async fn main() {
-///     let mut wynd = Wynd::new();
-///
-///     wynd.on_connection(|conn| async move {
-///         conn.on_error(|event| async move {
-///             eprintln!("WebSocket error: {}", event.message);
-///             
-///             // Log the error or take corrective action
-///             if event.message.contains("timeout") {
-///                 println!("Connection timed out, will retry");
-///             }
-///         });
-///     });
-///
-///     wynd.listen(8080, || {
-///         println!("Server listening on port 8080");
-///     })
-///     .await
-///     .unwrap();
-/// }
-/// ```
-pub struct ErrorEvent {
-    /// A description of the error that occurred.
-    pub message: String,
-}
+// /// Represents a WebSocket error event.
+// ///
+// /// This event is triggered when an error occurs during WebSocket
+// /// communication. It contains information about the error that occurred.
+// ///
+// /// ## Fields
+// ///
+// /// - `message`: A description of the error that occurred
+// ///
+// /// ## Example
+// ///
+// /// ```rust
+// /// use wynd::types::ErrorEvent;
+// /// use wynd::wynd::Wynd;
+// ///
+// /// #[tokio::main]
+// /// async fn main() {
+// ///     let mut wynd = Wynd::new();
+// ///
+// ///     wynd.on_connection(|conn| async move {
+// ///         conn.on_error(|event| async move {
+// ///             eprintln!("WebSocket error: {}", event.message);
+// ///
+// ///             // Log the error or take corrective action
+// ///             if event.message.contains("timeout") {
+// ///                 println!("Connection timed out, will retry");
+// ///             }
+// ///         });
+// ///     });
+// ///
+// ///     wynd.listen(8080, || {
+// ///         println!("Server listening on port 8080");
+// ///     })
+// ///     .await
+// ///     .unwrap();
+// /// }
+// /// ```
+// pub struct ErrorEvent {
+//     /// A description of the error that occurred.
+//     pub message: String,
+// }
 
-impl Default for ErrorEvent {
-    /// Creates a default error event with empty message.
-    fn default() -> Self {
-        Self::new(String::new())
-    }
-}
+// impl Default for ErrorEvent {
+//     /// Creates a default error event with empty message.
+//     fn default() -> Self {
+//         Self::new(String::new())
+//     }
+// }
 
-impl ErrorEvent {
-    /// Creates a new error event.
-    ///
-    /// ## Parameters
-    ///
-    /// - `message`: The error description
-    ///
-    /// ## Returns
-    ///
-    /// Returns a new `ErrorEvent` with the provided message.
-    pub(crate) fn new<T: Into<String>>(message: T) -> Self {
-        Self {
-            message: message.into(),
-        }
-    }
-}
+// impl ErrorEvent {
+//     /// Creates a new error event.
+//     ///
+//     /// ## Parameters
+//     ///
+//     /// - `message`: The error description
+//     ///
+//     /// ## Returns
+//     ///
+//     /// Returns a new `ErrorEvent` with the provided message.
+//     pub(crate) fn new<T: Into<String>>(message: T) -> Self {
+//         Self {
+//             message: message.into(),
+//         }
+//     }
+// }
 
 /// Represents a Wynd server error.
 ///
@@ -317,14 +311,20 @@ impl ErrorEvent {
 ///
 ///     wynd.listen(8080, || {
 ///         println!("Server listening on port 8080");
-///     })
-///     .await
-///     .unwrap();
+///     });
 /// }
 /// ```
 pub struct WyndError {
     /// The internal error message.
     inner: String,
+}
+
+impl Deref for WyndError {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
 }
 
 impl WyndError {

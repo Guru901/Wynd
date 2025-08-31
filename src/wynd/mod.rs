@@ -45,9 +45,7 @@
 //!     // Start the server
 //!     wynd.listen(8080, || {
 //!         println!("Server listening on port 8080");
-//!     })
-//!     .await
-//!     .unwrap();
+//!     });
 //! }
 //! ```
 
@@ -112,9 +110,7 @@ pub(crate) type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>
 ///
 ///     wynd.listen(8080, || {
 ///         println!("Server listening on port 8080");
-///     })
-///     .await
-///     .unwrap();
+///     });
 /// }
 /// ```
 pub struct Wynd {
@@ -304,9 +300,7 @@ impl Wynd {
     ///     
     ///     wynd.listen(8080, || {
     ///         println!("Server listening on port 8080");
-    ///     })
-    ///     .await
-    ///     .unwrap();
+    ///     });
     /// }
     /// ```
     pub async fn listen<F>(
