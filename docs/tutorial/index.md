@@ -144,11 +144,17 @@ async fn broadcast_message(
     message: &str,
     sender_id: u64,
 ) {
-    let clients = clients.lock().unwrap();
-    for (id, handle) in clients.iter() {
-        if *id != sender_id {
-            let _ = handle.send_text(message).await;
-        }
+    // 1) Snapshot under lock
+    let handles: Vec<Arc<wynd::conn::ConnectionHandle>> = {
+        let guard = clients.lock().await;
+        guard
+            .iter()
+            .filter_map(|(id, h)| (*id != sender_id).then(|| Arc::clone(h)))
+            .collect()
+    };
+    // 2) Send without holding the lock
+    for handle in handles {
+        let _ = handle.send_text(message).await;
     }
 }
 ```
