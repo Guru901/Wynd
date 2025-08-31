@@ -19,29 +19,55 @@ cargo add wynd tokio@1 --features tokio/macros,rt-multi-thread
 Replace `src/main.rs` with the following minimal example:
 
 ```rust
-use wynd::{conn::Conn, wynd::Wynd};
+use wynd::wynd::Wynd;
 
 #[tokio::main]
-async fn main() -> Result<(), String> {
-    let mut server = Wynd::new();
+async fn main() {
+    let mut wynd = Wynd::new();
 
-    server.on_connection(|conn: &mut Conn| {
-        conn.on_open(|| async move {
-            println!("client connected");
+    wynd.on_connection(|conn| async move {
+        println!("New connection established: {}", conn.id());
+
+        conn.on_open(|handle| async move {
+            println!("Connection {} is now open", handle.id());
+
+            // Send a welcome message
+            let _ = handle.send_text("Welcome to Wynd!").await;
+        })
+        .await;
+
+        conn.on_text(|msg, handle| async move {
+            println!("Message received: {}", msg.data);
+
+            // Echo the message back
+            let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
         });
 
-        conn.on_text(|event| async move {
-            println!("text: {}", event.data);
+        conn.on_binary(|msg, handle| async move {
+            println!("Binary message received: {} bytes", msg.data.len());
+
+            // Echo the binary data back
+            let _ = handle.send_binary(msg.data).await;
         });
 
-        conn.on_close(|e| async move {
-            println!("closed: {} {}", e.code, e.reason);
+        conn.on_close(|event| async move {
+            println!("Connection closed: code={}, reason={}", event.code, event.reason);
         });
     });
 
-    server.listen(8080, || {
-        println!("listening on ws://localhost:8080");
-    }).await
+    wynd.on_error(|err| async move {
+        eprintln!("Server error: {}", err);
+    });
+
+    wynd.on_close(|| {
+        println!("Server shutting down");
+    });
+
+    wynd.listen(8080, || {
+        println!("Listening on ws://localhost:8080");
+    })
+    .await
+    .unwrap();
 }
 ```
 
@@ -58,3 +84,21 @@ npx wscat -c ws://localhost:8080
 ```
 
 You should see connection and message logs in your terminal.
+
+## What's Happening
+
+1. **Server Creation**: `Wynd::new()` creates a new WebSocket server instance
+2. **Connection Handler**: `on_connection()` sets up what happens when clients connect
+3. **Event Handlers**: Each connection can have handlers for different events:
+   - `on_open()`: Called when the WebSocket handshake completes
+   - `on_text()`: Called when text messages are received
+   - `on_binary()`: Called when binary data is received
+   - `on_close()`: Called when the connection is closed
+4. **Server Events**: The server itself can have error and close handlers
+5. **Start Listening**: `listen()` starts the server on the specified port
+
+## Next Steps
+
+- Check out the [API Reference](../api-reference/) for detailed documentation
+- Explore [Examples](../example/) for more complex use cases
+- Read the [Guides](../guides/) for advanced patterns and best practices

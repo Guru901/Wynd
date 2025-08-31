@@ -1,3 +1,61 @@
+//! # WebSocket Connection Management
+//!
+//! This module provides the core connection types and event handling mechanisms
+//! for managing individual WebSocket connections.
+//!
+//! ## Overview
+//!
+//! The connection module contains two main types:
+//!
+//! - **`Connection`**: Represents a WebSocket connection with event handlers
+//! - **`ConnectionHandle`**: Provides methods to interact with a connection
+//!
+//! ## Example
+//!
+//! ```rust
+//! use wynd::wynd::Wynd;
+//!
+//! #[tokio::main]
+//! async fn main() {
+//!     let mut wynd = Wynd::new();
+//!
+//!     wynd.on_connection(|conn| async move {
+//!         // Set up connection event handlers
+//!         conn.on_open(|handle| async move {
+//!             println!("Connection {} opened", handle.id());
+//!             
+//!             // Send a welcome message
+//!             let _ = handle.send_text("Welcome!").await;
+//!         })
+//!         .await;
+//!
+//!         conn.on_text(|msg, handle| async move {
+//!             println!("Received text: {}", msg.data);
+//!             
+//!             // Echo the message back
+//!             let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
+//!         });
+//!
+//!         conn.on_binary(|msg, handle| async move {
+//!             println!("Received binary data: {} bytes", msg.data.len());
+//!             
+//!             // Echo the binary data back
+//!             let _ = handle.send_binary(msg.data).await;
+//!         });
+//!
+//!         conn.on_close(|event| async move {
+//!             println!("Connection closed: code={}, reason={}", event.code, event.reason);
+//!         });
+//!     });
+//!
+//!     wynd.listen(8080, || {
+//!         println!("Server listening on port 8080");
+//!     })
+//!     .await
+//!     .unwrap();
+//! }
+//! ```
+
 use std::{net::SocketAddr, sync::Arc};
 
 use futures::{SinkExt, StreamExt};
@@ -9,12 +67,26 @@ use crate::{
     wynd::BoxFuture,
 };
 
+/// Type alias for close event handlers.
+///
+/// Handlers for connection close events receive a `CloseEvent` with
+/// the close code and reason.
 type CloseHandler = Arc<Mutex<Option<Box<dyn Fn(CloseEvent) -> BoxFuture<()> + Send + Sync>>>>;
+
+/// Type alias for text message handlers.
+///
+/// Handlers for text messages receive a `TextMessageEvent` and a
+/// `ConnectionHandle` for sending responses.
 type TextMessageHanlder = Arc<
     Mutex<
         Option<Box<dyn Fn(TextMessageEvent, Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>,
     >,
 >;
+
+/// Type alias for binary message handlers.
+///
+/// Handlers for binary messages receive a `BinaryMessageEvent` and a
+/// `ConnectionHandle` for sending responses.
 type BinaryMessageHanlder = Arc<
     Mutex<
         Option<
@@ -22,26 +94,174 @@ type BinaryMessageHanlder = Arc<
         >,
     >,
 >;
+
+/// Type alias for connection open handlers.
+///
+/// Handlers for connection open events receive a `ConnectionHandle`
+/// for interacting with the connection.
 type OpenHandler =
     Arc<Mutex<Option<Box<dyn Fn(Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>>>;
 
+/// Represents a WebSocket connection with event handlers.
+///
+/// `Connection` is the main type for managing individual WebSocket connections.
+/// It provides methods to register event handlers for different types of WebSocket
+/// events (open, text messages, binary messages, close).
+///
+/// ## Event Lifecycle
+///
+/// 1. **Connection Established**: A new `Connection` is created when a client connects
+/// 2. **Open Event**: The `on_open` handler is called when the WebSocket handshake completes
+/// 3. **Message Events**: `on_text` and `on_binary` handlers are called for incoming messages
+/// 4. **Close Event**: The `on_close` handler is called when the connection is closed
+///
+/// ## Example
+///
+/// ```rust
+/// use wynd::wynd::Wynd;
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let mut wynd = Wynd::new();
+///
+///     wynd.on_connection(|conn| async move {
+///         // Handle connection open
+///         conn.on_open(|handle| async move {
+///             println!("Connection {} opened", handle.id());
+///             let _ = handle.send_text("Hello!").await;
+///         })
+///         .await;
+///
+///         // Handle text messages
+///         conn.on_text(|msg, handle| async move {
+///             println!("Received: {}", msg.data);
+///             let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
+///         });
+///
+///         // Handle binary messages
+///         conn.on_binary(|msg, handle| async move {
+///             println!("Received {} bytes", msg.data.len());
+///             let _ = handle.send_binary(msg.data).await;
+///         });
+///
+///         // Handle connection close
+///         conn.on_close(|event| async move {
+///             println!("Connection closed: {}", event.reason);
+///         });
+///     });
+///
+///     wynd.listen(8080, || {
+///         println!("Server listening on port 8080");
+///     })
+///     .await
+///     .unwrap();
+/// }
+/// ```
 pub struct Connection {
+    /// Unique identifier for this connection.
+    ///
+    /// Each connection gets a unique ID that can be used for logging,
+    /// debugging, and connection management.
     id: u64,
+
+    /// The underlying WebSocket stream.
+    ///
+    /// This is wrapped in an `Arc<Mutex<>>` to allow safe sharing
+    /// between the connection and its handle.
     websocket: Arc<Mutex<WebSocketStream<TcpStream>>>,
+
+    /// The remote address of the connection.
+    ///
+    /// This can be used for logging and access control.
     addr: SocketAddr,
+
+    /// Handler for connection open events.
     open_handler: OpenHandler,
+
+    /// Handler for text message events.
     text_message_handler: TextMessageHanlder,
+
+    /// Handler for binary message events.
     binary_message_handler: BinaryMessageHanlder,
+
+    /// Handler for connection close events.
     close_handler: CloseHandler,
 }
 
+/// Handle for interacting with a WebSocket connection.
+///
+/// `ConnectionHandle` provides methods to send messages and manage
+/// a WebSocket connection. It can be safely shared between threads
+/// and used in async contexts.
+///
+/// ## Features
+///
+/// - **Send Messages**: Send text and binary messages to the client
+/// - **Connection Management**: Close the connection gracefully
+/// - **Thread Safe**: Can be shared between threads and used in async contexts
+/// - **Connection Info**: Access connection ID and remote address
+///
+/// ## Example
+///
+/// ```rust
+/// use wynd::wynd::Wynd;
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let mut wynd = Wynd::new();
+///
+///     wynd.on_connection(|conn| async move {
+///         conn.on_open(|handle| async move {
+///             // Send a welcome message
+///             let _ = handle.send_text("Welcome to the server!").await;
+///             
+///             // Send some binary data
+///             let data = vec![1, 2, 3, 4, 5];
+///             let _ = handle.send_binary(data).await;
+///         })
+///         .await;
+///
+///         conn.on_text(|msg, handle| async move {
+///             // Echo the message back
+///             let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
+///         });
+///     });
+///
+///     wynd.listen(8080, || {
+///         println!("Server listening on port 8080");
+///     })
+///     .await
+///     .unwrap();
+/// }
+/// ```
 pub struct ConnectionHandle {
+    /// Unique identifier for this connection.
     id: u64,
+
+    /// The underlying WebSocket stream.
+    ///
+    /// This is shared with the `Connection` to allow both to send messages.
     websocket: Arc<Mutex<WebSocketStream<TcpStream>>>,
+
+    /// The remote address of the connection.
     addr: SocketAddr,
 }
 
 impl Connection {
+    /// Creates a new WebSocket connection.
+    ///
+    /// This method is called internally by the `Wynd` server when
+    /// a new WebSocket connection is established.
+    ///
+    /// ## Parameters
+    ///
+    /// - `id`: Unique identifier for the connection
+    /// - `websocket`: The WebSocket stream after handshake
+    /// - `addr`: The remote address of the connection
+    ///
+    /// ## Returns
+    ///
+    /// Returns a new `Connection` instance with default event handlers.
     pub(crate) fn new(id: u64, websocket: WebSocketStream<TcpStream>, addr: SocketAddr) -> Self {
         Self {
             id,
@@ -54,14 +274,119 @@ impl Connection {
         }
     }
 
+    /// Returns the unique identifier for this connection.
+    ///
+    /// Each connection gets a unique ID that can be used for logging,
+    /// debugging, and connection management.
+    ///
+    /// ## Returns
+    ///
+    /// Returns a reference to the connection ID.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::Wynd;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         println!("New connection: {}", conn.id());
+    ///         
+    ///         // Set up handlers...
+    ///     });
+    ///
+    ///     wynd.listen(8080, || {
+    ///         println!("Server listening on port 8080");
+    ///     })
+    ///     .await
+    ///     .unwrap();
+    /// }
+    /// ```
     pub fn id(&self) -> &u64 {
         &self.id
     }
 
+    /// Returns the remote address of this connection.
+    ///
+    /// This can be used for logging, access control, and connection
+    /// management purposes.
+    ///
+    /// ## Returns
+    ///
+    /// Returns the `SocketAddr` of the remote client.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::Wynd;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         println!("Connection from: {}", conn.addr());
+    ///         
+    ///         // Set up handlers...
+    ///     });
+    ///
+    ///     wynd.listen(8080, || {
+    ///         println!("Server listening on port 8080");
+    ///     })
+    ///     .await
+    ///     .unwrap();
+    /// }
+    /// ```
     pub fn addr(&self) -> SocketAddr {
         self.addr
     }
 
+    /// Registers a handler for connection open events.
+    ///
+    /// This method sets up a handler that will be called when the
+    /// WebSocket connection is fully established and ready for communication.
+    /// The handler receives a `ConnectionHandle` that can be used to send
+    /// messages to the client.
+    ///
+    /// ## Parameters
+    ///
+    /// - `handler`: An async closure that takes a `ConnectionHandle` and returns a future
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::Wynd;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_open(|handle| async move {
+    ///             println!("Connection {} opened", handle.id());
+    ///             
+    ///             // Send a welcome message
+    ///             let _ = handle.send_text("Welcome!").await;
+    ///             
+    ///             // Send some initial data
+    ///             let data = vec![1, 2, 3, 4, 5];
+    ///             let _ = handle.send_binary(data).await;
+    ///         })
+    ///         .await;
+    ///
+    ///         // Set up other handlers...
+    ///     });
+    ///
+    ///     wynd.listen(8080, || {
+    ///         println!("Server listening on port 8080");
+    ///     })
+    ///     .await
+    ///     .unwrap();
+    /// }
+    /// ```
     pub async fn on_open<F, Fut>(&self, handler: F)
     where
         F: Fn(Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
@@ -103,6 +428,51 @@ impl Connection {
         });
     }
 
+    /// Registers a handler for binary message events.
+    ///
+    /// This method sets up a handler that will be called whenever
+    /// a binary message is received from the client. The handler
+    /// receives a `BinaryMessageEvent` with the message data and
+    /// a `ConnectionHandle` for sending responses.
+    ///
+    /// ## Parameters
+    ///
+    /// - `handler`: An async closure that takes a `BinaryMessageEvent` and `ConnectionHandle`
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::Wynd;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_open(|handle| async move {
+    ///             println!("Connection opened");
+    ///         })
+    ///         .await;
+    ///
+    ///         conn.on_binary(|msg, handle| async move {
+    ///             println!("Received binary data: {} bytes", msg.data.len());
+    ///             
+    ///             // Echo the binary data back
+    ///             let _ = handle.send_binary(msg.data).await;
+    ///             
+    ///             // Or process the data and send a response
+    ///             let response = format!("Processed {} bytes", msg.data.len());
+    ///             let _ = handle.send_text(&response).await;
+    ///         });
+    ///     });
+    ///
+    ///     wynd.listen(8080, || {
+    ///         println!("Server listening on port 8080");
+    ///     })
+    ///     .await
+    ///     .unwrap();
+    /// }
+    /// ```
     pub fn on_binary<F, Fut>(&self, handler: F)
     where
         F: Fn(BinaryMessageEvent, Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
@@ -114,6 +484,61 @@ impl Connection {
             *lock = Some(Box::new(move |msg, handle| Box::pin(handler(msg, handle))));
         });
     }
+
+    /// Registers a handler for text message events.
+    ///
+    /// This method sets up a handler that will be called whenever
+    /// a text message is received from the client. The handler
+    /// receives a `TextMessageEvent` with the message data and
+    /// a `ConnectionHandle` for sending responses.
+    ///
+    /// ## Parameters
+    ///
+    /// - `handler`: An async closure that takes a `TextMessageEvent` and `ConnectionHandle`
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::Wynd;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_open(|handle| async move {
+    ///             println!("Connection opened");
+    ///         })
+    ///         .await;
+    ///
+    ///         conn.on_text(|msg, handle| async move {
+    ///             println!("Received: {}", msg.data);
+    ///             
+    ///             // Echo the message back
+    ///             let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
+    ///             
+    ///             // Or implement custom logic
+    ///             match msg.data.as_str() {
+    ///                 "ping" => {
+    ///                     let _ = handle.send_text("pong").await;
+    ///                 }
+    ///                 "quit" => {
+    ///                     let _ = handle.close().await;
+    ///                 }
+    ///                 _ => {
+    ///                     let _ = handle.send_text(&format!("Unknown command: {}", msg.data)).await;
+    ///                 }
+    ///             }
+    ///         });
+    ///     });
+    ///
+    ///     wynd.listen(8080, || {
+    ///         println!("Server listening on port 8080");
+    ///     })
+    ///     .await
+    ///     .unwrap();
+    /// }
+    /// ```
     pub fn on_text<F, Fut>(&self, handler: F)
     where
         F: Fn(TextMessageEvent, Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
@@ -126,6 +551,55 @@ impl Connection {
         });
     }
 
+    /// Registers a handler for connection close events.
+    ///
+    /// This method sets up a handler that will be called when the
+    /// WebSocket connection is closed. The handler receives a `CloseEvent`
+    /// with the close code and reason.
+    ///
+    /// ## Parameters
+    ///
+    /// - `handler`: An async closure that takes a `CloseEvent`
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::Wynd;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_open(|handle| async move {
+    ///             println!("Connection opened");
+    ///         })
+    ///         .await;
+    ///
+    ///         conn.on_text(|msg, handle| async move {
+    ///             println!("Received: {}", msg.data);
+    ///         });
+    ///
+    ///         conn.on_close(|event| async move {
+    ///             println!("Connection closed: code={}, reason={}", event.code, event.reason);
+    ///             
+    ///             // Perform cleanup or logging
+    ///             match event.code {
+    ///                 1000 => println!("Normal closure"),
+    ///                 1001 => println!("Going away"),
+    ///                 1002 => println!("Protocol error"),
+    ///                 _ => println!("Other closure: {}", event.code),
+    ///             }
+    ///         });
+    ///     });
+    ///
+    ///     wynd.listen(8080, || {
+    ///         println!("Server listening on port 8080");
+    ///     })
+    ///     .await
+    ///     .unwrap();
+    /// }
+    /// ```
     pub fn on_close<F, Fut>(&self, handler: F)
     where
         F: Fn(CloseEvent) -> Fut + Send + Sync + 'static,
@@ -138,6 +612,18 @@ impl Connection {
         });
     }
 
+    /// Main message processing loop.
+    ///
+    /// This method runs the main message loop for a WebSocket connection.
+    /// It continuously reads messages from the WebSocket stream and
+    /// dispatches them to the appropriate event handlers.
+    ///
+    /// ## Parameters
+    ///
+    /// - `handle`: The connection handle for sending messages
+    /// - `text_message_handler`: Handler for text messages
+    /// - `binary_message_handler`: Handler for binary messages
+    /// - `close_handler`: Handler for close events
     async fn message_loop(
         handle: Arc<ConnectionHandle>,
         text_message_handler: TextMessageHanlder,
@@ -189,26 +675,222 @@ impl Connection {
 }
 
 impl ConnectionHandle {
+    /// Returns the unique identifier for this connection.
+    ///
+    /// Each connection gets a unique ID that can be used for logging,
+    /// debugging, and connection management.
+    ///
+    /// ## Returns
+    ///
+    /// Returns the connection ID as a `u64`.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::Wynd;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_open(|handle| async move {
+    ///             println!("Connection {} opened", handle.id());
+    ///         })
+    ///         .await;
+    ///     });
+    ///
+    ///     wynd.listen(8080, || {
+    ///         println!("Server listening on port 8080");
+    ///     })
+    ///     .await
+    ///     .unwrap();
+    /// }
+    /// ```
     pub fn id(&self) -> u64 {
         self.id
     }
 
+    /// Returns the remote address of this connection.
+    ///
+    /// This can be used for logging, access control, and connection
+    /// management purposes.
+    ///
+    /// ## Returns
+    ///
+    /// Returns the `SocketAddr` of the remote client.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::Wynd;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_open(|handle| async move {
+    ///             println!("Connection from: {}", handle.addr());
+    ///         })
+    ///         .await;
+    ///     });
+    ///
+    ///     wynd.listen(8080, || {
+    ///         println!("Server listening on port 8080");
+    ///     })
+    ///     .await
+    ///     .unwrap();
+    /// }
+    /// ```
     pub fn addr(&self) -> SocketAddr {
         self.addr
     }
 
+    /// Sends a text message to the client.
+    ///
+    /// This method sends a UTF-8 text message to the WebSocket client.
+    /// The message is sent asynchronously and the method returns immediately.
+    ///
+    /// ## Parameters
+    ///
+    /// - `text`: The text message to send
+    ///
+    /// ## Returns
+    ///
+    /// Returns `Ok(())` if the message was sent successfully, or an error
+    /// if the send operation failed.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::Wynd;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_open(|handle| async move {
+    ///             // Send a welcome message
+    ///             let _ = handle.send_text("Welcome to the server!").await;
+    ///         })
+    ///         .await;
+    ///
+    ///         conn.on_text(|msg, handle| async move {
+    ///             // Echo the message back
+    ///             let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
+    ///         });
+    ///     });
+    ///
+    ///     wynd.listen(8080, || {
+    ///         println!("Server listening on port 8080");
+    ///     })
+    ///     .await
+    ///     .unwrap();
+    /// }
+    /// ```
     pub async fn send_text(&self, text: &str) -> Result<(), Box<dyn std::error::Error>> {
         let mut websocket = self.websocket.lock().await;
         websocket.send(Message::Text(text.into())).await?;
         Ok(())
     }
 
+    /// Sends binary data to the client.
+    ///
+    /// This method sends binary data to the WebSocket client.
+    /// The data is sent asynchronously and the method returns immediately.
+    ///
+    /// ## Parameters
+    ///
+    /// - `data`: The binary data to send
+    ///
+    /// ## Returns
+    ///
+    /// Returns `Ok(())` if the data was sent successfully, or an error
+    /// if the send operation failed.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::Wynd;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_open(|handle| async move {
+    ///             // Send some binary data
+    ///             let data = vec![1, 2, 3, 4, 5];
+    ///             let _ = handle.send_binary(data).await;
+    ///         })
+    ///         .await;
+    ///
+    ///         conn.on_binary(|msg, handle| async move {
+    ///             // Echo the binary data back
+    ///             let _ = handle.send_binary(msg.data).await;
+    ///         });
+    ///     });
+    ///
+    ///     wynd.listen(8080, || {
+    ///         println!("Server listening on port 8080");
+    ///     })
+    ///     .await
+    ///     .unwrap();
+    /// }
+    /// ```
     pub async fn send_binary(&self, data: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
         let mut websocket = self.websocket.lock().await;
         websocket.send(Message::Binary(data.into())).await?;
         Ok(())
     }
 
+    /// Closes the WebSocket connection gracefully.
+    ///
+    /// This method sends a close frame to the client and initiates
+    /// a graceful shutdown of the WebSocket connection.
+    ///
+    /// ## Returns
+    ///
+    /// Returns `Ok(())` if the close frame was sent successfully, or an error
+    /// if the send operation failed.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::Wynd;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_open(|handle| async move {
+    ///             println!("Connection opened");
+    ///         })
+    ///         .await;
+    ///
+    ///         conn.on_text(|msg, handle| async move {
+    ///             match msg.data.as_str() {
+    ///                 "quit" => {
+    ///                     println!("Client requested disconnect");
+    ///                     let _ = handle.close().await;
+    ///                 }
+    ///                 _ => {
+    ///                     let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
+    ///                 }
+    ///             }
+    ///         });
+    ///     });
+    ///
+    ///     wynd.listen(8080, || {
+    ///         println!("Server listening on port 8080");
+    ///     })
+    ///     .await
+    ///     .unwrap();
+    /// }
+    /// ```
     pub async fn close(&self) -> Result<(), Box<dyn std::error::Error>> {
         let mut websocket = self.websocket.lock().await;
         websocket.send(Message::Close(None)).await?;
