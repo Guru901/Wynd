@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.0] - 2025-08-28
+
+Slight api change
+A lot of changes to the docs
+
 ## [0.2.1] - 2025-08-28
 
 Fixed bug with wrong error codes
