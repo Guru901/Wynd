@@ -77,44 +77,69 @@ async fn main() {
 ### Chat Room Server
 
 ```rust
-use wynd::wynd::Wynd;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use wynd::wynd::Wynd;
 
 #[tokio::main]
 async fn main() {
     let mut wynd = Wynd::new();
-    let clients: Arc<Mutex<HashMap<u64, Arc<wynd::conn::ConnectionHandle>>>> = Arc::new(Mutex::new(HashMap::new()));
+    let clients: Arc<Mutex<HashMap<u64, Arc<wynd::conn::ConnectionHandle>>>> =
+        Arc::new(Mutex::new(HashMap::new()));
 
-    wynd.on_connection(|conn| async move {
-        let clients = Arc::clone(&clients);
+    wynd.on_connection(move |conn| {
+        let value = clients.clone();
+        async move {
+            let clients_clone = Arc::clone(&value);
 
-        conn.on_open(|handle| async move {
-            let handle = Arc::new(handle);
-            let id = handle.id();
+            conn.on_open(move |handle| {
+                let value = clients_clone.clone();
+                async move {
+                    let clients = Arc::clone(&value);
+                    let handle = Arc::new(handle);
+                    let id = handle.id();
 
-            // Add to chat room
-            {
-                let mut clients = clients.lock().await;
-                clients.insert(id, Arc::clone(&handle));
-            }
+                    // Add to chat room
+                    {
+                        let mut clients = clients.lock().await;
+                        clients.insert(id, Arc::clone(&handle));
+                    }
 
-            println!("Client {} joined the chat", id);
-            let _ = handle.send_text("Welcome to the chat room!").await;
+                    println!("Client {} joined the chat", id);
+                    let _ = handle.send_text("Welcome to the chat room!").await;
 
-            // Notify other clients
-            broadcast_message(&clients, &format!("Client {} joined", id), id).await;
-        })
-        .await;
+                    // Notify other clients
+                    broadcast_message(&clients, &format!("Client {} joined", id), id).await;
+                }
+            })
+            .await;
 
-        conn.on_text(|msg, handle| async move {
-            let id = handle.id();
-            let message = format!("Client {}: {}", id, msg.data);
+            let clients_clone = Arc::clone(&value);
 
-            // Broadcast to all clients
-            broadcast_message(&clients, &message, id).await;
-        });
+            conn.on_text(move |msg, handle| {
+                let value = clients_clone.clone();
+                async move {
+                    let clients = Arc::clone(&value);
+                    let id = handle.id();
+                    let message = format!("Client {}: {}", id, msg.data);
+
+                    // Broadcast to all clients
+                    broadcast_message(&clients, &message, id).await;
+                }
+            });
+
+            conn.on_close(|event| async move {
+                // We can't easily get the client ID here, so we'll just log the close event
+                println!(
+                    "Client disconnected: code={}, reason={}",
+                    event.code, event.reason
+                );
+
+                // Note: In a real application, you might want to track client IDs differently
+                // or use a different approach to handle disconnections
+            });
+        }
     });
 
     wynd.listen(8080, || {
