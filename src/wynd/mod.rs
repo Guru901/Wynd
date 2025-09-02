@@ -49,6 +49,13 @@
 //! }
 //! ```
 
+#[cfg(feature = "with-ripress")]
+use ripress::req::HttpRequest;
+#[cfg(feature = "with-ripress")]
+use ripress::res::HttpResponse;
+
+use tokio::io::{AsyncRead, AsyncWrite};
+
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -113,12 +120,15 @@ pub(crate) type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>
 ///     });
 /// }
 /// ```
-pub struct Wynd {
+pub struct Wynd<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+{
     /// Handler for new connections.
     ///
     /// This handler is called whenever a new WebSocket connection is established.
     /// It receives a `Connection` instance that can be used to set up event handlers.
-    connection_handler: Option<Box<dyn Fn(Connection) -> BoxFuture<()> + Send + Sync>>,
+    connection_handler: Option<Box<dyn Fn(Connection<T>) -> BoxFuture<()> + Send + Sync>>,
 
     /// Handler for server-level errors.
     ///
@@ -139,7 +149,20 @@ pub struct Wynd {
     next_connection_id: ConnectionId,
 }
 
-impl Drop for Wynd {
+/// Tells the library which type to use for the server.
+/// In this case you want to use wynd as a standalone lib.
+
+pub type Standalone = TcpStream;
+
+/// Tells the library which type to use for the server.
+/// In this case you want to use wynd with ripress.
+
+pub type WithRipress = HttpRequest;
+
+impl<T> Drop for Wynd<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+{
     /// Ensures proper cleanup when the server is dropped.
     ///
     /// Calls the close handler if one is registered, ensuring graceful shutdown.
@@ -153,7 +176,10 @@ impl Drop for Wynd {
     }
 }
 
-impl Wynd {
+impl<T> Wynd<T>
+where
+    T: AsyncRead + AsyncWrite + Send + Sync + 'static + std::marker::Unpin,
+{
     /// Creates a new WebSocket server instance.
     ///
     /// Returns a new `Wynd` instance with default settings. The server
@@ -208,7 +234,7 @@ impl Wynd {
     /// ```
     pub fn on_connection<F, Fut>(&mut self, handler: F)
     where
-        F: Fn(Connection) -> Fut + Send + Sync + 'static,
+        F: Fn(Connection<T>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
         self.connection_handler = Some(Box::new(move |conn| Box::pin(handler(conn))));
@@ -303,6 +329,73 @@ impl Wynd {
     ///     });
     /// }
     /// ```
+    // listen is only meaningful when T = TcpStream; provided in a specialized impl below
+
+    #[cfg(feature = "with-ripress")]
+    pub fn handler(
+        &self,
+    ) -> impl Fn(ripress::req::HttpRequest, ripress::res::HttpResponse) -> FutMiddleware
+    + Send
+    + Sync
+    + 'static {
+        move |req, _res| Box::pin(async move { (req, None) })
+    }
+
+    /// This method performs the WebSocket handshake and creates a `Connection`
+    /// instance for the new connection. It then calls the connection handler
+    /// if one is registered.
+    ///
+    /// ## Parameters
+    ///
+    /// - `stream`: The TCP stream for the connection
+    /// - `addr`: The remote address of the connection
+    ///
+    /// ## Returns
+    ///
+    /// Returns `Ok(())` if the connection is handled successfully, or an error
+    /// if the WebSocket handshake fails or other errors occur.
+    async fn handle_connection(
+        &self,
+        stream: T,
+        addr: SocketAddr,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let websocket = match timeout(Duration::from_secs(10), accept_async(stream)).await {
+            Ok(res) => res?, // tungstenite::Result<_>
+            Err(_) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "WebSocket handshake timed out",
+                )
+                .into());
+            }
+        };
+        // Get next connection ID
+        let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
+
+        let connection = Connection::new(connection_id, websocket, addr);
+
+        // Initialize the connection with a default open handler to keep it alive
+        connection
+            .on_open(|_handle| async move {
+                // Default handler that keeps the connection alive
+                // The connection will be managed by the message loop
+            })
+            .await;
+
+        if let Some(ref handler) = self.connection_handler {
+            handler(connection).await;
+        }
+
+        Ok(())
+    }
+}
+
+impl Wynd<TcpStream> {
+    /// Starts the WebSocket server and begins listening for connections.
+    ///
+    /// This method starts the server on the specified port and begins accepting
+    /// WebSocket connections. The server will run indefinitely until an error
+    /// occurs or the process is terminated.
     pub async fn listen<F>(
         self,
         port: u16,
@@ -346,63 +439,7 @@ impl Wynd {
             }
         }
     }
-
-    /// Handles an individual WebSocket connection.
-    ///
-    /// This method performs the WebSocket handshake and creates a `Connection`
-    /// instance for the new connection. It then calls the connection handler
-    /// if one is registered.
-    ///
-    /// ## Parameters
-    ///
-    /// - `stream`: The TCP stream for the connection
-    /// - `addr`: The remote address of the connection
-    ///
-    /// ## Returns
-    ///
-    /// Returns `Ok(())` if the connection is handled successfully, or an error
-    /// if the WebSocket handshake fails or other errors occur.
-    async fn handle_connection(
-        &self,
-        stream: TcpStream,
-        addr: SocketAddr,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let websocket = match timeout(Duration::from_secs(10), accept_async(stream)).await {
-            Ok(res) => res?, // tungstenite::Result<_>
-            Err(_) => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::TimedOut,
-                    "WebSocket handshake timed out",
-                )
-                .into());
-            }
-        };
-        // Get next connection ID
-        let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
-
-        let connection = Connection::new(connection_id, websocket, addr);
-
-        // Initialize the connection with a default open handler to keep it alive
-        connection
-            .on_open(|_handle| async move {
-                // Default handler that keeps the connection alive
-                // The connection will be managed by the message loop
-            })
-            .await;
-
-        if let Some(ref handler) = self.connection_handler {
-            handler(connection).await;
-        }
-
-        Ok(())
-    }
 }
 
-impl Default for Wynd {
-    /// Creates a new WebSocket server instance with default settings.
-    ///
-    /// This is equivalent to calling `Wynd::new()`.
-    fn default() -> Self {
-        Self::new()
-    }
-}
+type FutMiddleware =
+    Pin<Box<dyn Future<Output = (HttpRequest, Option<HttpResponse>)> + Send + 'static>>;
