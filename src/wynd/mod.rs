@@ -157,6 +157,7 @@ pub type Standalone = TcpStream;
 /// Tells the library which type to use for the server.
 /// In this case you want to use wynd with ripress.
 
+#[cfg(feature = "with-ripress")]
 pub type WithRipress = HttpRequest;
 
 impl<T> Drop for Wynd<T>
@@ -441,5 +442,6 @@ impl Wynd<TcpStream> {
     }
 }
 
+#[cfg(feature = "with-ripress")]
 type FutMiddleware =
     Pin<Box<dyn Future<Output = (HttpRequest, Option<HttpResponse>)> + Send + 'static>>;

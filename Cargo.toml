@@ -19,4 +19,4 @@ ripress = { version = "1", optional = true }
 
 [features]
 with-ripress = ["ripress"]
-default = ["with-ripress"]
+default = []
