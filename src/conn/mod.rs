@@ -74,7 +74,7 @@ type CloseHandler = Arc<Mutex<Option<Box<dyn Fn(CloseEvent) -> BoxFuture<()> + S
 ///
 /// Handlers for text messages receive a `TextMessageEvent` and a
 /// `ConnectionHandle` for sending responses.
-type TextMessageHanlder<T> = Arc<
+type TextMessageHandler<T> = Arc<
     Mutex<
         Option<
             Box<dyn Fn(TextMessageEvent, Arc<ConnectionHandle<T>>) -> BoxFuture<()> + Send + Sync>,
@@ -86,7 +86,7 @@ type TextMessageHanlder<T> = Arc<
 ///
 /// Handlers for binary messages receive a `BinaryMessageEvent` and a
 /// `ConnectionHandle` for sending responses.
-type BinaryMessageHanlder<T> = Arc<
+type BinaryMessageHandler<T> = Arc<
     Mutex<
         Option<
             Box<
@@ -178,10 +178,10 @@ where
     open_handler: OpenHandler<T>,
 
     /// Handler for text message events.
-    text_message_handler: TextMessageHanlder<T>,
+    text_message_handler: TextMessageHandler<T>,
 
     /// Handler for binary message events.
-    binary_message_handler: BinaryMessageHanlder<T>,
+    binary_message_handler: BinaryMessageHandler<T>,
 
     /// Handler for connection close events.
     close_handler: CloseHandler,
@@ -606,8 +606,8 @@ where
     /// - `close_handler`: Handler for close events
     async fn message_loop(
         handle: Arc<ConnectionHandle<T>>,
-        text_message_handler: TextMessageHanlder<T>,
-        binary_message_handler: BinaryMessageHanlder<T>,
+        text_message_handler: TextMessageHandler<T>,
+        binary_message_handler: BinaryMessageHandler<T>,
         close_handler: CloseHandler,
         reader: Arc<Mutex<futures::stream::SplitStream<WebSocketStream<T>>>>,
     ) {
