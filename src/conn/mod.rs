@@ -166,7 +166,8 @@ where
     ///
     /// This is wrapped in an `Arc<Mutex<>>` to allow safe sharing
     /// between the connection and its handle.
-    websocket: Arc<Mutex<WebSocketStream<T>>>,
+    reader: Arc<Mutex<futures::stream::SplitStream<WebSocketStream<T>>>>,
+    writer: Arc<Mutex<futures::stream::SplitSink<WebSocketStream<T>, Message>>>,
 
     /// The remote address of the connection.
     ///
@@ -236,7 +237,7 @@ where
     /// The underlying WebSocket stream.
     ///
     /// This is shared with the `Connection` to allow both to send messages.
-    websocket: Arc<Mutex<WebSocketStream<T>>>,
+    writer: Arc<Mutex<futures::stream::SplitSink<WebSocketStream<T>, Message>>>,
 
     /// The remote address of the connection.
     addr: SocketAddr,
@@ -261,9 +262,12 @@ where
     ///
     /// Returns a new `Connection` instance with default event handlers.
     pub(crate) fn new(id: u64, websocket: WebSocketStream<T>, addr: SocketAddr) -> Self {
+        let (writer, reader) = futures::StreamExt::split(websocket);
+
         Self {
             id,
-            websocket: Arc::new(Mutex::new(websocket)),
+            reader: Arc::new(Mutex::new(reader)),
+            writer: Arc::new(Mutex::new(writer)),
             addr,
             open_handler: Arc::new(Mutex::new(None)),
             text_message_handler: Arc::new(Mutex::new(None)),
@@ -372,13 +376,25 @@ where
         F: Fn(Arc<ConnectionHandle<T>>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        let mut open_handler = self.open_handler.lock().await;
+        let mut open_handler: tokio::sync::MutexGuard<
+            '_,
+            Option<
+                Box<
+                    dyn Fn(
+                            Arc<ConnectionHandle<T>>,
+                        )
+                            -> std::pin::Pin<Box<dyn Future<Output = ()> + Send>>
+                        + Send
+                        + Sync,
+                >,
+            >,
+        > = self.open_handler.lock().await;
         *open_handler = Some(Box::new(move |handle| Box::pin(handler(handle))));
 
         // Create connection handle and start the connection lifecycle
         let handle = Arc::new(ConnectionHandle {
             id: self.id,
-            websocket: Arc::clone(&self.websocket),
+            writer: Arc::clone(&self.writer),
             addr: self.addr,
         });
 
@@ -387,6 +403,7 @@ where
         let binary_message_handler_clone = Arc::clone(&self.binary_message_handler);
         let close_handler_clone = Arc::clone(&self.close_handler);
         let handle_clone = Arc::clone(&handle);
+        let reader_clone = Arc::clone(&self.reader);
 
         tokio::spawn(async move {
             // Call open handler
@@ -403,6 +420,7 @@ where
                 text_message_handler_clone,
                 binary_message_handler_clone,
                 close_handler_clone,
+                reader_clone,
             )
             .await;
         });
@@ -591,11 +609,12 @@ where
         text_message_handler: TextMessageHanlder<T>,
         binary_message_handler: BinaryMessageHanlder<T>,
         close_handler: CloseHandler,
+        reader: Arc<Mutex<futures::stream::SplitStream<WebSocketStream<T>>>>,
     ) {
         loop {
             let msg = {
-                let mut ws = handle.websocket.lock().await;
-                futures::StreamExt::next(&mut *ws).await
+                let mut rd = reader.lock().await;
+                futures::StreamExt::next(&mut *rd).await
             };
 
             match msg {
@@ -738,8 +757,8 @@ where
     /// }
     /// ```
     pub async fn send_text(&self, text: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let mut websocket = self.websocket.lock().await;
-        futures::SinkExt::send(&mut *websocket, Message::Text(text.into())).await?;
+        let mut writer = self.writer.lock().await;
+        futures::SinkExt::send(&mut *writer, Message::Text(text.into())).await?;
         Ok(())
     }
 
@@ -782,8 +801,8 @@ where
     /// }
     /// ```
     pub async fn send_binary(&self, data: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
-        let mut websocket = self.websocket.lock().await;
-        futures::SinkExt::send(&mut *websocket, Message::Binary(data.into())).await?;
+        let mut writer = self.writer.lock().await;
+        futures::SinkExt::send(&mut *writer, Message::Binary(data.into())).await?;
         Ok(())
     }
 
@@ -827,8 +846,8 @@ where
     /// }
     /// ```
     pub async fn close(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let mut websocket = self.websocket.lock().await;
-        futures::SinkExt::send(&mut *websocket, Message::Close(None)).await?;
+        let mut writer = self.writer.lock().await;
+        futures::SinkExt::send(&mut *writer, Message::Close(None)).await?;
         Ok(())
     }
 }
