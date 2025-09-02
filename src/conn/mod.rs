@@ -50,13 +50,7 @@
 //! }
 //! ```
 
-use std::{net::SocketAddr, sync::Arc};
-
-// at the top of src/conn/mod.rs, in the imports section
-
-use std::{net::SocketAddr, sync::Arc};
-
-use futures::{SinkExt, StreamExt};  // ← newly added import
+use std::{net::SocketAddr, sync::Arc}; // ← newly added import
 
 // futures traits are used via fully qualified syntax
 use tokio::{
