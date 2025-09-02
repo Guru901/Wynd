@@ -229,7 +229,7 @@ where
 /// ```
 pub struct ConnectionHandle<T>
 where
-    T: AsyncRead + AsyncWrite + Send + Sync + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
 {
     /// Unique identifier for this connection.
     id: u64,
@@ -301,8 +301,8 @@ where
     ///     });
     /// }
     /// ```
-    pub fn id(&self) -> &u64 {
-        &self.id
+    pub fn id(&self) -> u64 {
+        self.id
     }
 
     /// Returns the remote address of this connection.

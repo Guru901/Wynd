@@ -179,7 +179,7 @@ where
 
 impl<T> Wynd<T>
 where
-    T: AsyncRead + AsyncWrite + Send + Sync + 'static + std::marker::Unpin,
+    T: AsyncRead + AsyncWrite + Send + Sync + 'static + Unpin,
 {
     /// Creates a new WebSocket server instance.
     ///
