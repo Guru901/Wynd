@@ -50,10 +50,12 @@
 //! }
 //! ```
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc}; // ← newly added import
 
-use futures::{SinkExt, StreamExt};
-use tokio::{net::TcpStream, sync::Mutex};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    sync::Mutex,
+};
 use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
 use crate::{
@@ -71,9 +73,11 @@ type CloseHandler = Arc<Mutex<Option<Box<dyn Fn(CloseEvent) -> BoxFuture<()> + S
 ///
 /// Handlers for text messages receive a `TextMessageEvent` and a
 /// `ConnectionHandle` for sending responses.
-type TextMessageHanlder = Arc<
+type TextMessageHandler<T> = Arc<
     Mutex<
-        Option<Box<dyn Fn(TextMessageEvent, Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>,
+        Option<
+            Box<dyn Fn(TextMessageEvent, Arc<ConnectionHandle<T>>) -> BoxFuture<()> + Send + Sync>,
+        >,
     >,
 >;
 
@@ -81,10 +85,12 @@ type TextMessageHanlder = Arc<
 ///
 /// Handlers for binary messages receive a `BinaryMessageEvent` and a
 /// `ConnectionHandle` for sending responses.
-type BinaryMessageHanlder = Arc<
+type BinaryMessageHandler<T> = Arc<
     Mutex<
         Option<
-            Box<dyn Fn(BinaryMessageEvent, Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>,
+            Box<
+                dyn Fn(BinaryMessageEvent, Arc<ConnectionHandle<T>>) -> BoxFuture<()> + Send + Sync,
+            >,
         >,
     >,
 >;
@@ -93,8 +99,8 @@ type BinaryMessageHanlder = Arc<
 ///
 /// Handlers for connection open events receive a `ConnectionHandle`
 /// for interacting with the connection.
-type OpenHandler =
-    Arc<Mutex<Option<Box<dyn Fn(Arc<ConnectionHandle>) -> BoxFuture<()> + Send + Sync>>>>;
+type OpenHandler<T> =
+    Arc<Mutex<Option<Box<dyn Fn(Arc<ConnectionHandle<T>>) -> BoxFuture<()> + Send + Sync>>>>;
 
 /// Represents a WebSocket connection with event handlers.
 ///
@@ -145,7 +151,10 @@ type OpenHandler =
 ///     });
 /// }
 /// ```
-pub struct Connection {
+pub struct Connection<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     /// Unique identifier for this connection.
     ///
     /// Each connection gets a unique ID that can be used for logging,
@@ -156,7 +165,8 @@ pub struct Connection {
     ///
     /// This is wrapped in an `Arc<Mutex<>>` to allow safe sharing
     /// between the connection and its handle.
-    websocket: Arc<Mutex<WebSocketStream<TcpStream>>>,
+    reader: Arc<Mutex<futures::stream::SplitStream<WebSocketStream<T>>>>,
+    writer: Arc<Mutex<futures::stream::SplitSink<WebSocketStream<T>, Message>>>,
 
     /// The remote address of the connection.
     ///
@@ -164,13 +174,13 @@ pub struct Connection {
     addr: SocketAddr,
 
     /// Handler for connection open events.
-    open_handler: OpenHandler,
+    open_handler: OpenHandler<T>,
 
     /// Handler for text message events.
-    text_message_handler: TextMessageHanlder,
+    text_message_handler: TextMessageHandler<T>,
 
     /// Handler for binary message events.
-    binary_message_handler: BinaryMessageHanlder,
+    binary_message_handler: BinaryMessageHandler<T>,
 
     /// Handler for connection close events.
     close_handler: CloseHandler,
@@ -216,20 +226,26 @@ pub struct Connection {
 ///     });
 /// }
 /// ```
-pub struct ConnectionHandle {
+pub struct ConnectionHandle<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     /// Unique identifier for this connection.
     id: u64,
 
     /// The underlying WebSocket stream.
     ///
     /// This is shared with the `Connection` to allow both to send messages.
-    websocket: Arc<Mutex<WebSocketStream<TcpStream>>>,
+    writer: Arc<Mutex<futures::stream::SplitSink<WebSocketStream<T>, Message>>>,
 
     /// The remote address of the connection.
     addr: SocketAddr,
 }
 
-impl Connection {
+impl<T> Connection<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     /// Creates a new WebSocket connection.
     ///
     /// This method is called internally by the `Wynd` server when
@@ -244,10 +260,13 @@ impl Connection {
     /// ## Returns
     ///
     /// Returns a new `Connection` instance with default event handlers.
-    pub(crate) fn new(id: u64, websocket: WebSocketStream<TcpStream>, addr: SocketAddr) -> Self {
+    pub(crate) fn new(id: u64, websocket: WebSocketStream<T>, addr: SocketAddr) -> Self {
+        let (writer, reader) = futures::StreamExt::split(websocket);
+
         Self {
             id,
-            websocket: Arc::new(Mutex::new(websocket)),
+            reader: Arc::new(Mutex::new(reader)),
+            writer: Arc::new(Mutex::new(writer)),
             addr,
             open_handler: Arc::new(Mutex::new(None)),
             text_message_handler: Arc::new(Mutex::new(None)),
@@ -281,8 +300,8 @@ impl Connection {
     ///     });
     /// }
     /// ```
-    pub fn id(&self) -> &u64 {
-        &self.id
+    pub fn id(&self) -> u64 {
+        self.id
     }
 
     /// Returns the remote address of this connection.
@@ -353,16 +372,28 @@ impl Connection {
     /// ```
     pub async fn on_open<F, Fut>(&self, handler: F)
     where
-        F: Fn(Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
+        F: Fn(Arc<ConnectionHandle<T>>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        let mut open_handler = self.open_handler.lock().await;
+        let mut open_handler: tokio::sync::MutexGuard<
+            '_,
+            Option<
+                Box<
+                    dyn Fn(
+                            Arc<ConnectionHandle<T>>,
+                        )
+                            -> std::pin::Pin<Box<dyn Future<Output = ()> + Send>>
+                        + Send
+                        + Sync,
+                >,
+            >,
+        > = self.open_handler.lock().await;
         *open_handler = Some(Box::new(move |handle| Box::pin(handler(handle))));
 
         // Create connection handle and start the connection lifecycle
         let handle = Arc::new(ConnectionHandle {
             id: self.id,
-            websocket: Arc::clone(&self.websocket),
+            writer: Arc::clone(&self.writer),
             addr: self.addr,
         });
 
@@ -371,6 +402,7 @@ impl Connection {
         let binary_message_handler_clone = Arc::clone(&self.binary_message_handler);
         let close_handler_clone = Arc::clone(&self.close_handler);
         let handle_clone = Arc::clone(&handle);
+        let reader_clone = Arc::clone(&self.reader);
 
         tokio::spawn(async move {
             // Call open handler
@@ -387,6 +419,7 @@ impl Connection {
                 text_message_handler_clone,
                 binary_message_handler_clone,
                 close_handler_clone,
+                reader_clone,
             )
             .await;
         });
@@ -433,7 +466,7 @@ impl Connection {
     /// ```
     pub fn on_binary<F, Fut>(&self, handler: F)
     where
-        F: Fn(BinaryMessageEvent, Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
+        F: Fn(BinaryMessageEvent, Arc<ConnectionHandle<T>>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
         let binary_message_handler = Arc::clone(&self.binary_message_handler);
@@ -493,7 +526,7 @@ impl Connection {
     /// ```
     pub fn on_text<F, Fut>(&self, handler: F)
     where
-        F: Fn(TextMessageEvent, Arc<ConnectionHandle>) -> Fut + Send + Sync + 'static,
+        F: Fn(TextMessageEvent, Arc<ConnectionHandle<T>>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
         let text_message_handler = Arc::clone(&self.text_message_handler);
@@ -571,15 +604,16 @@ impl Connection {
     /// - `binary_message_handler`: Handler for binary messages
     /// - `close_handler`: Handler for close events
     async fn message_loop(
-        handle: Arc<ConnectionHandle>,
-        text_message_handler: TextMessageHanlder,
-        binary_message_handler: BinaryMessageHanlder,
+        handle: Arc<ConnectionHandle<T>>,
+        text_message_handler: TextMessageHandler<T>,
+        binary_message_handler: BinaryMessageHandler<T>,
         close_handler: CloseHandler,
+        reader: Arc<Mutex<futures::stream::SplitStream<WebSocketStream<T>>>>,
     ) {
         loop {
             let msg = {
-                let mut ws = handle.websocket.lock().await;
-                ws.next().await
+                let mut rd = reader.lock().await;
+                futures::StreamExt::next(&mut *rd).await
             };
 
             match msg {
@@ -620,7 +654,10 @@ impl Connection {
     }
 }
 
-impl ConnectionHandle {
+impl<T> ConnectionHandle<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     /// Returns the unique identifier for this connection.
     ///
     /// Each connection gets a unique ID that can be used for logging,
@@ -719,8 +756,8 @@ impl ConnectionHandle {
     /// }
     /// ```
     pub async fn send_text(&self, text: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let mut websocket = self.websocket.lock().await;
-        websocket.send(Message::Text(text.into())).await?;
+        let mut writer = self.writer.lock().await;
+        futures::SinkExt::send(&mut *writer, Message::Text(text.into())).await?;
         Ok(())
     }
 
@@ -763,8 +800,8 @@ impl ConnectionHandle {
     /// }
     /// ```
     pub async fn send_binary(&self, data: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
-        let mut websocket = self.websocket.lock().await;
-        websocket.send(Message::Binary(data.into())).await?;
+        let mut writer = self.writer.lock().await;
+        futures::SinkExt::send(&mut *writer, Message::Binary(data.into())).await?;
         Ok(())
     }
 
@@ -808,8 +845,8 @@ impl ConnectionHandle {
     /// }
     /// ```
     pub async fn close(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let mut websocket = self.websocket.lock().await;
-        websocket.send(Message::Close(None)).await?;
+        let mut writer = self.writer.lock().await;
+        futures::SinkExt::send(&mut *writer, Message::Close(None)).await?;
         Ok(())
     }
 }

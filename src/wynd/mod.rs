@@ -49,6 +49,12 @@
 //! }
 //! ```
 
+#[cfg(feature = "with-ripress")]
+use futures::StreamExt;
+#[cfg(feature = "with-ripress")]
+use hyper_tungstenite::hyper;
+use tokio::io::{AsyncRead, AsyncWrite};
+
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -113,12 +119,17 @@ pub(crate) type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>
 ///     });
 /// }
 /// ```
-pub struct Wynd {
+pub struct Wynd<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     /// Handler for new connections.
     ///
     /// This handler is called whenever a new WebSocket connection is established.
     /// It receives a `Connection` instance that can be used to set up event handlers.
-    connection_handler: Option<Box<dyn Fn(Connection) -> BoxFuture<()> + Send + Sync>>,
+    connection_handler: Option<Box<dyn Fn(Connection<T>) -> BoxFuture<()> + Send + Sync>>,
+
+    addr: SocketAddr,
 
     /// Handler for server-level errors.
     ///
@@ -139,7 +150,21 @@ pub struct Wynd {
     next_connection_id: ConnectionId,
 }
 
-impl Drop for Wynd {
+/// Tells the library which type to use for the server.
+/// In this case you want to use wynd as a standalone lib.
+
+pub type Standalone = TcpStream;
+
+/// Tells the library which type to use for the server.
+/// In this case you want to use wynd with ripress.
+
+#[cfg(feature = "with-ripress")]
+pub type WithRipress = hyper::upgrade::Upgraded;
+
+impl<T> Drop for Wynd<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     /// Ensures proper cleanup when the server is dropped.
     ///
     /// Calls the close handler if one is registered, ensuring graceful shutdown.
@@ -153,7 +178,10 @@ impl Drop for Wynd {
     }
 }
 
-impl Wynd {
+impl<T> Wynd<T>
+where
+    T: AsyncRead + AsyncWrite + Send + 'static + Unpin,
+{
     /// Creates a new WebSocket server instance.
     ///
     /// Returns a new `Wynd` instance with default settings. The server
@@ -172,6 +200,7 @@ impl Wynd {
             error_handler: None,
             close_handler: None,
             next_connection_id: ConnectionId::new(0),
+            addr: SocketAddr::from(([0, 0, 0, 0], 8080)),
         }
     }
 
@@ -208,7 +237,7 @@ impl Wynd {
     /// ```
     pub fn on_connection<F, Fut>(&mut self, handler: F)
     where
-        F: Fn(Connection) -> Fut + Send + Sync + 'static,
+        F: Fn(Connection<T>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
         self.connection_handler = Some(Box::new(move |conn| Box::pin(handler(conn))));
@@ -303,52 +332,8 @@ impl Wynd {
     ///     });
     /// }
     /// ```
-    pub async fn listen<F>(
-        self,
-        port: u16,
-        on_listening: F,
-    ) -> Result<(), Box<dyn std::error::Error>>
-    where
-        F: FnOnce() + Send + 'static,
-    {
-        let addr = format!("127.0.0.1:{}", port);
-        let listener = TcpListener::bind(&addr).await?;
+    // listen is only meaningful when T = TcpStream; provided in a specialized impl below
 
-        // Call the listening callback
-        on_listening();
-
-        let wynd = Arc::new(self);
-
-        loop {
-            match listener.accept().await {
-                Ok((stream, addr)) => {
-                    let wynd_clone = Arc::clone(&wynd);
-                    tokio::spawn(async move {
-                        if let Err(e) = wynd_clone.handle_connection(stream, addr).await {
-                            eprintln!("Error handling connection: {}", e);
-                        }
-                    });
-                }
-                Err(e) => {
-                    let handler = wynd.error_handler.as_ref();
-
-                    if let Some(handler) = handler {
-                        handler(WyndError::new(e.to_string())).await;
-                    } else {
-                        eprintln!("Error accepting connection: {}", e);
-                    }
-
-                    eprintln!("accept() failed: {e}. Retrying...");
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-
-                    continue;
-                }
-            }
-        }
-    }
-
-    /// Handles an individual WebSocket connection.
-    ///
     /// This method performs the WebSocket handshake and creates a `Connection`
     /// instance for the new connection. It then calls the connection handler
     /// if one is registered.
@@ -364,7 +349,7 @@ impl Wynd {
     /// if the WebSocket handshake fails or other errors occur.
     async fn handle_connection(
         &self,
-        stream: TcpStream,
+        stream: T,
         addr: SocketAddr,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let websocket = match timeout(Duration::from_secs(10), accept_async(stream)).await {
@@ -398,11 +383,156 @@ impl Wynd {
     }
 }
 
-impl Default for Wynd {
-    /// Creates a new WebSocket server instance with default settings.
+impl Wynd<TcpStream> {
+    /// Starts the WebSocket server and begins listening for connections.
     ///
-    /// This is equivalent to calling `Wynd::new()`.
-    fn default() -> Self {
-        Self::new()
+    /// This method starts the server on the specified port and begins accepting
+    /// WebSocket connections. The server will run indefinitely until an error
+    /// occurs or the process is terminated.
+    pub async fn listen<F>(
+        mut self,
+        port: u16,
+        on_listening: F,
+    ) -> Result<(), Box<dyn std::error::Error>>
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        let addr = format!("127.0.0.1:{}", port);
+        let listener = TcpListener::bind(&addr).await?;
+        self.addr = listener.local_addr().unwrap();
+
+        // Call the listening callback
+        on_listening();
+
+        let wynd = Arc::new(self);
+
+        loop {
+            match listener.accept().await {
+                Ok((stream, addr)) => {
+                    let wynd_clone = Arc::clone(&wynd);
+                    tokio::spawn(async move {
+                        if let Err(e) = wynd_clone.handle_connection(stream, addr).await {
+                            eprintln!("Error handling connection: {}", e);
+                        }
+                    });
+                }
+                Err(e) => {
+                    let handler = wynd.error_handler.as_ref();
+
+                    if let Some(handler) = handler {
+                        handler(WyndError::new(e.to_string())).await;
+                    } else {
+                        eprintln!("Error accepting connection: {}", e);
+                    }
+
+                    eprintln!("accept() failed: {e}. Retrying...");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+
+                    continue;
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "with-ripress")]
+impl Wynd<WithRipress> {
+    pub fn handler(
+        self,
+    ) -> impl Fn(
+        hyper::Request<hyper::Body>,
+    )
+        -> Pin<Box<dyn Future<Output = hyper::Result<hyper::Response<hyper::Body>>> + Send>>
+    + Send
+    + Sync
+    + 'static {
+        let wynd = Arc::new(self);
+        move |mut req| {
+            let wynd = Arc::clone(&wynd);
+            Box::pin(async move {
+                // Check if this is a WebSocket upgrade request
+                let is_websocket_upgrade = req
+                    .headers()
+                    .get("upgrade")
+                    .and_then(|h| h.to_str().ok())
+                    .map(|h| h.eq_ignore_ascii_case("websocket"))
+                    .unwrap_or(false);
+
+                let has_websocket_key = req.headers().get("sec-websocket-key").is_some();
+                let has_websocket_version = req.headers().get("sec-websocket-version").is_some();
+
+                if !is_websocket_upgrade || !has_websocket_key || !has_websocket_version {
+                    let response = hyper::Response::builder()
+                        .status(400)
+                        .body(hyper::Body::from("Expected WebSocket upgrade"))
+                        .unwrap();
+                    return Ok(response);
+                }
+
+                // Perform the WebSocket upgrade - this is the key difference
+                match hyper_tungstenite::upgrade(&mut req, None) {
+                    Ok((response, websocket_future)) => {
+                        // Spawn task to handle the WebSocket connection
+                        let wynd_clone = Arc::clone(&wynd);
+                        tokio::spawn(async move {
+                            // We must ensure that errors are 'Send' to be used in spawned tasks.
+                            match websocket_future.await {
+                                Ok(ws_stream) => {
+                                    let connection_id = wynd_clone
+                                        .next_connection_id
+                                        .fetch_add(1, Ordering::Relaxed);
+
+                                    let connection =
+                                        Connection::new(connection_id, ws_stream, wynd_clone.addr);
+
+                                    if let Err(e) = wynd_clone
+                                        .handle_websocket_connection(connection, connection_id)
+                                        .await
+                                    {
+                                        eprintln!("Error handling WebSocket connection: {}", e);
+                                        if let Some(ref error_handler) = wynd_clone.error_handler {
+                                            // Convert error to string to avoid non-Send trait objects
+                                            // Ensure WyndError is Send by using String
+                                            // error_handler(WyndError::new(e.to_string())).await;
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("WebSocket handshake failed: {:?}", e);
+                                    // if let Some(ref error_handler) = wynd_clone.error_handler {}
+                                }
+                            }
+                        });
+
+                        // Return the upgrade response immediately - this completes the handshake
+                        Ok(response)
+                    }
+                    Err(e) => {
+                        eprintln!("WebSocket upgrade failed: {:?}", e);
+                        let response = hyper::Response::builder()
+                            .status(400)
+                            .body(hyper::Body::from("WebSocket upgrade failed"))
+                            .unwrap();
+                        Ok(response)
+                    }
+                }
+            })
+        }
+    }
+
+    // Handle the WebSocket connection after successful upgrade
+    async fn handle_websocket_connection(
+        &self,
+        connection: Connection<WithRipress>,
+        connection_id: u64,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // Start the connection lifecycle by invoking on_open immediately
+        connection.on_open(|_handle| async move {}).await;
+        // Allow user code to register handlers for this connection
+        if let Some(ref handler) = self.connection_handler {
+            handler(connection).await;
+        }
+
+        Ok(())
     }
 }

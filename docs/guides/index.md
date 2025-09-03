@@ -107,6 +107,117 @@ async fn broadcast_message(
 }
 ```
 
+### Combined HTTP + WebSocket Server
+
+Integrate WebSocket functionality with HTTP server using ripress:
+
+```rust
+use ripress::{app::App, types::RouterFns};
+use wynd::wynd::Wynd;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+#[tokio::main]
+async fn main() {
+    let mut wynd = Wynd::new();
+    let mut app = App::new();
+    let clients: Arc<Mutex<HashMap<u64, Arc<wynd::conn::ConnectionHandle>>>> = Arc::new(Mutex::new(HashMap::new()));
+
+    // WebSocket handlers
+    wynd.on_connection(|conn| async move {
+        let clients = Arc::clone(&clients);
+        let conn_id = conn.id();
+
+        conn.on_open(|handle| async move {
+            let handle = Arc::new(handle);
+            let id = handle.id();
+
+            // Add to client list
+            {
+                let mut clients = clients.lock().await;
+                clients.insert(id, Arc::clone(&handle));
+            }
+
+            println!("Client {} joined", id);
+            let _ = handle.send_text("Welcome!").await;
+
+            // Broadcast join message
+            broadcast_message(&clients, &format!("Client {} joined", id), id).await;
+        })
+        .await;
+
+        conn.on_text(|msg, handle| async move {
+            let id = handle.id();
+            let message = format!("Client {}: {}", id, msg.data);
+            broadcast_message(&clients, &message, id).await;
+        });
+
+        conn.on_close(|_event| async move {
+            let removed = {
+                let mut map = clients.lock().await;
+                map.remove(&conn_id).is_some()
+            };
+            if removed {
+                println!("Client {} left", conn_id);
+                broadcast_message(&clients, &format!("Client {} left", conn_id), conn_id).await;
+            }
+        });
+    });
+
+    // HTTP routes
+    app.get("/", |_, res| async move {
+        res.ok().text("Welcome to the combined server!")
+    });
+
+    app.get("/api/status", |_, res| async move {
+        let client_count = clients.lock().await.len();
+        res.ok().json(&serde_json::json!({
+            "clients": client_count,
+            "status": "online"
+        }))
+    });
+
+    app.get("/api/clients", |_, res| async move {
+        let clients = clients.lock().await;
+        let client_ids: Vec<u64> = clients.keys().copied().collect();
+        res.ok().json(&serde_json::json!({
+            "clients": client_ids,
+            "count": client_ids.len()
+        }))
+    });
+
+    // Mount WebSocket at /ws path
+    app.use_wynd("/ws", wynd.handler());
+
+    // Start combined server
+    app.listen(3000, || {
+        println!("Server running on http://localhost:3000");
+        println!("WebSocket available at ws://localhost:3000/ws");
+    })
+    .await;
+}
+
+async fn broadcast_message(
+    clients: &Arc<Mutex<HashMap<u64, Arc<wynd::conn::ConnectionHandle>>>>,
+    message: &str,
+    sender_id: u64,
+) {
+    let targets: Vec<Arc<wynd::conn::ConnectionHandle>> = {
+        let clients = clients.lock().await;
+        clients
+            .iter()
+            .filter(|(id, _)| **id != sender_id)
+            .map(|(_, handle)| Arc::clone(handle))
+            .collect()
+    };
+
+    for handle in targets {
+        let _ = handle.send_text(message).await;
+    }
+}
+```
+
 ## Connection Management
 
 ### Graceful Shutdown
