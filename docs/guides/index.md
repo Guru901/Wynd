@@ -152,11 +152,14 @@ async fn main() {
             broadcast_message(&clients, &message, id).await;
         });
 
-        conn.on_close(|event| async move {
-            let mut clients = clients.lock().await;
-            if let Some(handle) = clients.remove(&event.code) {
-                println!("Client {} left", event.code);
-                broadcast_message(&clients, &format!("Client {} left", event.code), event.code).await;
+        conn.on_close(|_event| async move {
+            let removed = {
+                let mut map = clients.lock().await;
+                map.remove(&conn_id).is_some()
+            };
+            if removed {
+                println!("Client {} left", conn_id);
+                broadcast_message(&clients, &format!("Client {} left", conn_id), conn_id).await;
             }
         });
     });
