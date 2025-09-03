@@ -53,11 +53,6 @@ async fn main() {
 
 Use the `with-ripress` feature to serve both HTTP and WebSocket on the same port:
 
-```toml
-[dependencies]
-wynd = { version = "0.3", features = ["with-ripress"] }
-ripress = "1.8"
-```
 
 ```rust
 use ripress::{app::App, types::RouterFns};
