@@ -127,6 +127,7 @@ async fn main() {
     // WebSocket handlers
     wynd.on_connection(|conn| async move {
         let clients = Arc::clone(&clients);
+        let conn_id = conn.id();
 
         conn.on_open(|handle| async move {
             let handle = Arc::new(handle);
