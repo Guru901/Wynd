@@ -675,10 +675,10 @@ Welcome to the chat! Available commands:
                                 };
 
                                 {
-                                    let mut users = users.lock().unwrap();
+                                {
+                                    let mut users = users.lock().await;
                                     users.insert(id, user.clone());
                                 }
-
                                 println!("Client {} is now known as {}", id, name);
                                 if let Err(e) = user.handle.send_text(&format!("You are now known as {}", name)).await {
                                     eprintln!("Failed to send name confirmation to client {}: {}", id, e);
