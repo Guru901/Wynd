@@ -1,10 +1,14 @@
 # Changelog
 
-## [0.3.1] - 2025-08-28
+## [0.3.2] - 2025-09-4
+
+Fixed cyclic dependency issues when using with wynd
+
+## [0.3.1] - 2025-09-3
 
 Readme fixed
 
-## [0.3.0] - 2025-08-28
+## [0.3.0] - 2025-09-3
 
 Slight api change
 A lot of changes to the docs

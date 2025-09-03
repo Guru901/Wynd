@@ -15,9 +15,8 @@ futures = "0.3.31"
 tokio = { version = "1.46.1", features = ["macros", "rt-multi-thread", "fs", "io-util", "net", "sync", "time"] }
 tokio-tungstenite = "0.18.0"
 uuid = { version = "1.18.0", features = ["v4"] }
-ripress = { version="1.8", optional = true, features=["with-wynd"] }
 hyper-tungstenite = "0.9"
 
 [features]
-with-ripress = ["ripress"]
+with-ripress = []
 default = []
