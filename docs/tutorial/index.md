@@ -750,11 +750,17 @@ Available commands:
             }
         });
 
-        conn.on_close(|event| async move {
-            let mut users = users.lock().unwrap();
-            if let Some(user) = users.remove(&event.code) {
-                println!("{} left the chat", user.name);
-                broadcast_message(&users, &format!("{} left the chat", user.name), event.code).await;
+        // Capture id for this connection
+        let conn_id = conn.id();
+        conn.on_close(|_event| async move {
+            let (removed_name, users_arc) = {
+                let mut map = users.lock().await;
+                let name = map.remove(&conn_id).map(|u| u.name);
+                (name, Arc::clone(&users))
+            };
+            if let Some(name) = removed_name {
+                println!("{} left the chat", name);
+                broadcast_message(&users_arc, &format!("{} left the chat", name), conn_id).await;
             }
         });
     });
