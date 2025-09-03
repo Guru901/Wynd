@@ -1,14 +1,19 @@
 # Changelog
 
-## [0.3.2] - 2025-09-4
+## [0.4.1] - 2025-09-4
 
-Fixed cyclic dependency issues when using with wynd
+Fixed cyclic dependency issues when using with ripress
 
-## [0.3.1] - 2025-09-3
+## [0.4.0] - 2025-09-3
+
+Added feauture flag for ripress
+Added `wynd.handler()` for ripress
+
+## [0.3.1] - 2025-08-28
 
 Readme fixed
 
-## [0.3.0] - 2025-09-3
+## [0.3.0] - 2025-08-28
 
 Slight api change
 A lot of changes to the docs
