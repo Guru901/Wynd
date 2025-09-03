@@ -15,6 +15,7 @@ The main WebSocket server type that manages connections and server lifecycle.
 - `on_error(fn(WyndError) -> Future)` - Registers a handler for server-level errors
 - `on_close(fn() -> ())` - Registers a handler for server shutdown
 - `listen(port: u16, on_listening: impl FnOnce()) -> Result<(), Error>` - Starts the server
+- `handler() -> WyndHandler` - Returns a handler for integration with ripress (requires `with-ripress` feature)
 
 #### Example
 
@@ -35,6 +36,31 @@ wynd.listen(8080, || {
     println!("Server listening on port 8080");
 })
 .await?;
+```
+
+#### Integration with ripress
+
+When using the `with-ripress` feature, you can integrate Wynd with ripress HTTP server:
+
+```rust
+use ripress::{app::App, types::RouterFns};
+use wynd::wynd::Wynd;
+
+let mut wynd = Wynd::new();
+let mut app = App::new();
+
+wynd.on_connection(|conn| async move {
+    // Handle WebSocket connections
+});
+
+app.get("/", |_, res| async move { res.ok().text("Hello World!") });
+app.use_wynd("/ws", wynd.handler()); // Mount WebSocket at /ws path
+
+app.listen(3000, || {
+    println!("Server running on http://localhost:3000");
+    println!("WebSocket available at ws://localhost:3000/ws");
+})
+.await;
 ```
 
 ### `conn::Connection`
@@ -223,3 +249,56 @@ All Wynd types are designed to be thread-safe:
 - Each connection runs in its own task for true concurrency
 - Message handlers are executed asynchronously
 - Binary data is handled efficiently with minimal copying
+
+## Integration with ripress
+
+When using the `with-ripress` feature, Wynd provides seamless integration with ripress HTTP server:
+
+### Features
+
+- **Unified Server**: Run HTTP and WebSocket servers on the same port
+- **Shared Middleware**: Use ripress middleware for both HTTP and WebSocket requests
+- **Flexible Routing**: Mount WebSocket endpoints at any path
+- **Resource Efficiency**: Single server process handles both protocols
+
+### Usage Pattern
+
+```rust
+use ripress::{app::App, types::RouterFns};
+use wynd::wynd::Wynd;
+
+#[tokio::main]
+async fn main() {
+    let mut wynd = Wynd::new();
+    let mut app = App::new();
+
+    // Configure WebSocket handlers
+    wynd.on_connection(|conn| async move {
+        conn.on_text(|event, handle| async move {
+            println!("WebSocket message: {}", event.data);
+            let _ = handle.send_text(&format!("Echo: {}", event.data)).await;
+        });
+    });
+
+    // Configure HTTP routes
+    app.get("/", |_, res| async move {
+        res.ok().text("Welcome to the combined server!")
+    });
+
+    app.get("/api/status", |_, res| async move {
+        res.ok().json(&serde_json::json!({"status": "online"}))
+    });
+
+    // Mount WebSocket at /ws path
+    app.use_wynd("/ws", wynd.handler());
+
+    // Start the combined server
+    app.listen(3000, || {
+        println!("Server running on http://localhost:3000");
+        println!("WebSocket available at ws://localhost:3000/ws");
+    })
+    .await;
+}
+```
+
+This integration allows you to build applications that serve both HTTP APIs and real-time WebSocket functionality from a single server instance.

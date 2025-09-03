@@ -38,6 +38,157 @@ async fn main() {
 }
 ```
 
+## Combined HTTP + WebSocket Server
+
+A server that serves both HTTP requests and WebSocket connections using ripress integration.
+
+```rust
+use ripress::{app::App, types::RouterFns};
+use wynd::wynd::Wynd;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+#[tokio::main]
+async fn main() {
+    let mut wynd = Wynd::new();
+    let mut app = App::new();
+    let clients: Arc<Mutex<HashMap<u64, Arc<wynd::conn::ConnectionHandle>>>> = Arc::new(Mutex::new(HashMap::new()));
+
+    // WebSocket connection handler
+    wynd.on_connection(|conn| async move {
+        let clients = Arc::clone(&clients);
+
+        conn.on_open(|handle| async move {
+            let handle = Arc::new(handle);
+            let id = handle.id();
+
+            // Add client to the chat room
+            {
+                let mut clients = clients.lock().await;
+                clients.insert(id, Arc::clone(&handle));
+            }
+
+            println!("Client {} joined the chat", id);
+            let _ = handle.send_text("Welcome to the chat room!").await;
+
+            // Notify other clients
+            broadcast_message(&clients, &format!("Client {} joined the chat", id), id).await;
+        })
+        .await;
+
+        conn.on_text(|msg, handle| async move {
+            let id = handle.id();
+            println!("Client {} says: {}", id, msg.data);
+
+            // Broadcast message to all clients
+            broadcast_message(&clients, &format!("Client {}: {}", id, msg.data), id).await;
+        });
+
+        conn.on_close(|event| async move {
+            println!("Client disconnected: {}", event.reason);
+        });
+    });
+
+    // HTTP routes
+    app.get("/", |_, res| async move {
+        res.ok().html(r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Chat Server</title>
+            </head>
+            <body>
+                <h1>Welcome to the Chat Server</h1>
+                <p>Connect to <code>ws://localhost:3000/ws</code> to join the chat!</p>
+                <div id="status">Status: <span id="status-text">Disconnected</span></div>
+                <div id="messages"></div>
+                <input type="text" id="message" placeholder="Type your message...">
+                <button onclick="sendMessage()">Send</button>
+
+                <script>
+                    const ws = new WebSocket('ws://localhost:3000/ws');
+                    const statusText = document.getElementById('status-text');
+                    const messages = document.getElementById('messages');
+                    const messageInput = document.getElementById('message');
+
+                    ws.onopen = function() {
+                        statusText.textContent = 'Connected';
+                        statusText.style.color = 'green';
+                    };
+
+                    ws.onmessage = function(event) {
+                        const div = document.createElement('div');
+                        div.textContent = event.data;
+                        messages.appendChild(div);
+                    };
+
+                    ws.onclose = function() {
+                        statusText.textContent = 'Disconnected';
+                        statusText.style.color = 'red';
+                    };
+
+                    function sendMessage() {
+                        const message = messageInput.value;
+                        if (message && ws.readyState === WebSocket.OPEN) {
+                            ws.send(message);
+                            messageInput.value = '';
+                        }
+                    }
+
+                    messageInput.addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') {
+                            sendMessage();
+                        }
+                    });
+                </script>
+            </body>
+            </html>
+        "#)
+    });
+
+    app.get("/api/clients", |_, res| async move {
+        let client_count = clients.lock().await.len();
+        res.ok().json(&serde_json::json!({
+            "clients": client_count,
+            "status": "online"
+        }))
+    });
+
+    // Mount WebSocket at /ws path
+    app.use_wynd("/ws", wynd.handler());
+
+    // Start the combined server
+    app.listen(3000, || {
+        println!("Server running on http://localhost:3000");
+        println!("WebSocket available at ws://localhost:3000/ws");
+        println!("API status at http://localhost:3000/api/clients");
+    })
+    .await;
+}
+
+async fn broadcast_message(
+    clients: &Arc<Mutex<HashMap<u64, Arc<wynd::conn::ConnectionHandle>>>>,
+    message: &str,
+    sender_id: u64,
+) {
+    // Collect handles to send to, avoiding holding the lock across await
+    let targets: Vec<Arc<wynd::conn::ConnectionHandle>> = {
+        let clients = clients.lock().await;
+        clients
+            .iter()
+            .filter(|(id, _)| **id != sender_id)
+            .map(|(_, handle)| Arc::clone(handle))
+            .collect()
+    };
+
+    // Send messages without holding the lock
+    for handle in targets {
+        let _ = handle.send_text(message).await;
+    }
+}
+```
+
 ## Chat Room Server
 
 A simple chat room that broadcasts messages to all connected clients.

@@ -86,6 +86,51 @@ npx wscat -c ws://localhost:8080
 
 You should see connection and message logs in your terminal.
 
+## Using Wynd with ripress (HTTP + WebSocket)
+
+If you want to serve both HTTP requests and WebSocket connections on the same port, you can use the `with-ripress` feature to integrate with the ripress HTTP server:
+
+```bash
+cargo add wynd --features with-ripress
+cargo add ripress
+```
+
+Then create a combined server:
+
+```rust
+use ripress::{app::App, types::RouterFns};
+use wynd::wynd::Wynd;
+
+#[tokio::main]
+async fn main() {
+    let mut wynd = Wynd::new();
+    let mut app = App::new();
+
+    wynd.on_connection(|conn| async move {
+        conn.on_text(|event, handle| async move {
+            println!("{}", event.data);
+        });
+    });
+
+    app.get("/", |_, res| async move { res.ok().text("Hello World!") });
+
+    app.use_wynd("/ws", wynd.handler());
+
+    app.listen(3000, || {
+        println!("Server running on http://localhost:3000");
+        println!("WebSocket available at ws://localhost:3000/ws");
+    })
+    .await;
+}
+```
+
+This setup allows you to:
+
+- Serve HTTP requests at `http://localhost:3000/`
+- Serve WebSocket connections at `ws://localhost:3000/ws`
+- Use ripress's routing, middleware, and other HTTP features
+- Handle both protocols on the same port
+
 ## What's Happening
 
 1. **Server Creation**: `Wynd::new()` creates a new WebSocket server instance

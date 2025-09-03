@@ -52,7 +52,6 @@
 
 use std::{net::SocketAddr, sync::Arc}; // ← newly added import
 
-// futures traits are used via fully qualified syntax
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     sync::Mutex,
@@ -154,7 +153,7 @@ type OpenHandler<T> =
 /// ```
 pub struct Connection<T>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     /// Unique identifier for this connection.
     ///
@@ -229,7 +228,7 @@ where
 /// ```
 pub struct ConnectionHandle<T>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     /// Unique identifier for this connection.
     id: u64,
@@ -245,7 +244,7 @@ where
 
 impl<T> Connection<T>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     /// Creates a new WebSocket connection.
     ///
@@ -657,7 +656,7 @@ where
 
 impl<T> ConnectionHandle<T>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     /// Returns the unique identifier for this connection.
     ///

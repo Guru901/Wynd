@@ -28,7 +28,25 @@ wynd = "0.3"
 
 ## Feature flags
 
-Wynd currently has no optional features to toggle. Tokio is used with multi-threaded runtime under the hood by your application. Ensure your binary uses `#[tokio::main]` or starts a runtime manually.
+Wynd supports the following optional features:
+
+### `with-ripress`
+
+Enable integration with the [ripress](https://crates.io/crates/ripress) HTTP server crate to run WebSocket and HTTP servers together on the same port.
+
+```toml
+[dependencies]
+wynd = { version = "0.3", features = ["with-ripress"] }
+ripress = "1.8"
+```
+
+This feature allows you to:
+
+- Serve WebSocket connections and HTTP requests on the same port
+- Use ripress's routing and middleware capabilities
+- Integrate WebSocket functionality into existing HTTP applications
+
+See the [Getting Started](../getting-started/) guide for examples of using Wynd with ripress.
 
 ## Verify installation
 
