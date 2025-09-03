@@ -854,16 +854,28 @@ Available commands:
 }
 
 async fn broadcast_message(
+async fn broadcast_message(
     users: &Arc<Mutex<HashMap<u64, ChatUser>>>,
     message: &str,
     sender_id: u64,
 ) {
-    let users = users.lock().unwrap();
-    for (id, user) in users.iter() {
-        if *id != sender_id {
-            if let Err(e) = user.handle.send_text(message).await {
-                eprintln!("Failed to broadcast message to client {}: {}", id, e);
-            }
+    // 1) Snapshot handles under the lock, then immediately drop it
+    let targets: Vec<Arc<wynd::conn::ConnectionHandle>> = {
+        let guard = users.lock().await;
+        guard
+            .iter()
+            .filter_map(|(id, u)| (*id != sender_id).then(|| Arc::clone(&u.handle)))
+            .collect()
+    };
+
+    // 2) Send without holding the lock
+    for handle in targets {
+        if let Err(e) = handle.send_text(message).await {
+            eprintln!(
+                "Failed to broadcast message to client {}: {}",
+                handle.id(),
+                e
+            );
         }
     }
 }
