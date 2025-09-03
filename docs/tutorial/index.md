@@ -736,6 +736,8 @@ Available commands:
             } else {
                 // Regular message
                 let users = users.lock().unwrap();
+                // Regular message
+                let users = users.lock().await;
                 if let Some(user) = users.get(&id) {
                     let message = format!("{}: {}", user.name, text);
                     println!("{}", message);
