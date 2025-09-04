@@ -41,10 +41,13 @@ test.describe("WebSocket binary message tests", () => {
     );
 
     // Validate we received identical content back
-    const echoed = await page.evaluate(() => {
+    const echoed = await page.evaluate(async () => {
       const data = window.wsMessages![0];
       if (data instanceof ArrayBuffer) return Array.from(new Uint8Array(data));
-      if (data instanceof Blob) return [] as number[]; // some servers echo text only; skip strict check
+      if (data instanceof Blob) {
+        const buf = await data.arrayBuffer();
+        return Array.from(new Uint8Array(buf));
+      }
       return [] as number[];
     });
 
