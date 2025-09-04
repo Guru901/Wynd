@@ -1078,6 +1078,7 @@ dependencies = [
  "hyper-tungstenite",
  "tokio",
  "tokio-tungstenite",
+ "url",
  "uuid",
 ]
 

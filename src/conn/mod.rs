@@ -231,15 +231,15 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     /// Unique identifier for this connection.
-    id: u64,
+    pub(crate) id: u64,
 
     /// The underlying WebSocket stream.
     ///
     /// This is shared with the `Connection` to allow both to send messages.
-    writer: Arc<Mutex<futures::stream::SplitSink<WebSocketStream<T>, Message>>>,
+    pub(crate) writer: Arc<Mutex<futures::stream::SplitSink<WebSocketStream<T>, Message>>>,
 
     /// The remote address of the connection.
-    addr: SocketAddr,
+    pub(crate) addr: SocketAddr,
 }
 
 impl<T> Connection<T>
@@ -634,7 +634,7 @@ where
                 Some(Ok(Message::Close(close_frame))) => {
                     let close_event = match close_frame {
                         Some(e) => CloseEvent::new(e.code.into(), e.reason.to_string()),
-                        None => CloseEvent::default(),
+                        None => CloseEvent::new(1000, "Normal closure".to_string()),
                     };
 
                     // Connection closed
