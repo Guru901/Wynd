@@ -7,7 +7,6 @@ cd ./src
 touch main.rs
 
 echo '
-
 use wynd::wynd::Wynd;
 
 #[tokio::main]
@@ -15,19 +14,41 @@ async fn main() {
     let mut wynd = Wynd::new();
 
     wynd.on_connection(|conn| async move {
-        println!("New connection established: {}", conn.id());
-        
-        // Initialize the connection
+        println!("id: {}", conn.id());
+        println!("remote_addr: {}", conn.addr());
+
         conn.on_open(|handle| async move {
-            println!("Connection {} is now open", handle.id());
-        }).await;
+            println!("Client connected");
+            handle
+                .send_text("Hello from ripress and wynd!")
+                .await
+                .unwrap();
+        })
+        .await;
+
+        conn.on_text(|event, handle| async move {
+            println!("Received text: {:?}", event.data);
+            handle.send_text(&event.data).await.unwrap();
+        });
+
+        conn.on_binary(|event, handle| async move {
+            println!("Received binary: {:?}", event.data);
+            handle.send_binary(event.data.to_vec()).await.unwrap();
+        });
+
+        conn.on_close(|event| async move {
+            println!(
+                "Client disconnected  code : {:?}, reason: {:?}",
+                event.code, event.reason
+            );
+        });
     });
 
-    wynd.listen(8080, || {
-        println!("Listening on port 8080");
+    wynd.listen(3000, || {
+        println!("Listening on port 3000");
     })
     .await
-    .unwrap()
+    .unwrap();
 }
 
 ' > main.rs

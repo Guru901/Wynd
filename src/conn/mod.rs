@@ -13,11 +13,11 @@
 //! ## Example
 //!
 //! ```rust
-//! use wynd::wynd::Wynd;
+//! use wynd::wynd::{Wynd, Standalone};
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     let mut wynd = Wynd::new();
+//!     let mut wynd: Wynd<Standalone> = Wynd::new();
 //!
 //!     wynd.on_connection(|conn| async move {
 //!         // Set up connection event handlers
@@ -118,11 +118,11 @@ type OpenHandler<T> =
 /// ## Example
 ///
 /// ```rust
-/// use wynd::wynd::Wynd;
+/// use wynd::wynd::{Wynd, Standalone};
 ///
 /// #[tokio::main]
 /// async fn main() {
-///     let mut wynd = Wynd::new();
+///     let mut wynd: Wynd<Standalone> = Wynd::new();
 ///
 ///     wynd.on_connection(|conn| async move {
 ///         // Handle connection open
@@ -202,11 +202,11 @@ where
 /// ## Example
 ///
 /// ```rust
-/// use wynd::wynd::Wynd;
+/// use wynd::wynd::{Wynd, Standalone};
 ///
 /// #[tokio::main]
 /// async fn main() {
-///     let mut wynd = Wynd::new();
+///     let mut wynd: Wynd<Standalone> = Wynd::new();
 ///
 ///     wynd.on_connection(|conn| async move {
 ///         conn.on_open(|handle| async move {
@@ -287,11 +287,11 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
     /// #[tokio::main]
     /// async fn main() {
-    ///     let mut wynd = Wynd::new();
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     ///     wynd.on_connection(|conn| async move {
     ///         println!("New connection: {}", conn.id());
@@ -316,11 +316,11 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
     /// #[tokio::main]
     /// async fn main() {
-    ///     let mut wynd = Wynd::new();
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     ///     wynd.on_connection(|conn| async move {
     ///         println!("Connection from: {}", conn.addr());
@@ -347,11 +347,11 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
     /// #[tokio::main]
     /// async fn main() {
-    ///     let mut wynd = Wynd::new();
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     ///     wynd.on_connection(|conn| async move {
     ///         conn.on_open(|handle| async move {
@@ -439,11 +439,11 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
     /// #[tokio::main]
     /// async fn main() {
-    ///     let mut wynd = Wynd::new();
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     ///     wynd.on_connection(|conn| async move {
     ///         conn.on_open(|handle| async move {
@@ -490,11 +490,11 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
     /// #[tokio::main]
     /// async fn main() {
-    ///     let mut wynd = Wynd::new();
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     ///     wynd.on_connection(|conn| async move {
     ///         conn.on_open(|handle| async move {
@@ -549,11 +549,11 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
     /// #[tokio::main]
     /// async fn main() {
-    ///     let mut wynd = Wynd::new();
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     ///     wynd.on_connection(|conn| async move {
     ///         conn.on_open(|handle| async move {
@@ -670,11 +670,11 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
     /// #[tokio::main]
     /// async fn main() {
-    ///     let mut wynd = Wynd::new();
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     ///     wynd.on_connection(|conn| async move {
     ///         conn.on_open(|handle| async move {
@@ -700,11 +700,11 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
     /// #[tokio::main]
     /// async fn main() {
-    ///     let mut wynd = Wynd::new();
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     ///     wynd.on_connection(|conn| async move {
     ///         conn.on_open(|handle| async move {
@@ -735,11 +735,11 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
     /// #[tokio::main]
     /// async fn main() {
-    ///     let mut wynd = Wynd::new();
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     ///     wynd.on_connection(|conn| async move {
     ///         conn.on_open(|handle| async move {
@@ -778,11 +778,11 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
     /// #[tokio::main]
     /// async fn main() {
-    ///     let mut wynd = Wynd::new();
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     ///     wynd.on_connection(|conn| async move {
     ///         conn.on_open(|handle| async move {
@@ -818,11 +818,11 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
     /// #[tokio::main]
     /// async fn main() {
-    ///     let mut wynd = Wynd::new();
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     ///     wynd.on_connection(|conn| async move {
     ///         conn.on_open(|handle| async move {

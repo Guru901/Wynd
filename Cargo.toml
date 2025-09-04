@@ -19,4 +19,4 @@ hyper-tungstenite = "0.9"
 
 [features]
 with-ripress = []
-default = []
+default = ["with-ripress"]

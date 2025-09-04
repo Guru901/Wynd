@@ -16,11 +16,11 @@
 //! ## Quick Start
 //!
 //! ```rust
-//! use wynd::wynd::Wynd;
+//! use wynd::wynd::{Wynd, Standalone};
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     let mut wynd = Wynd::new();
+//!     let mut wynd: Wynd<Standalone> = Wynd::new();
 //!
 //!     wynd.on_connection(|conn| async move {
 //!         println!("New connection established: {}", conn.id());
