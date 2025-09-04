@@ -15,12 +15,12 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust
-//! use wynd::wynd::Wynd;
+//! ```no_run
+//! use wynd::wynd::{Wynd, Standalone};
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     let mut wynd = Wynd::new();
+//!     let mut wynd: Wynd<Standalone> = Wynd::new();
 //!
 //!     wynd.on_connection(|conn| async move {
 //!         println!("New connection established: {}", conn.id());
@@ -39,9 +39,9 @@
 //!
 //!     wynd.listen(8080, || {
 //!         println!("Listening on port 8080");
-//!     });
-//!     //.await
-//!     //.unwrap();
+//!     })
+//!     .await
+//!     .unwrap();
 //! }
 //! ```
 //!

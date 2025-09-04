@@ -15,11 +15,11 @@ use std::{fmt::Display, ops::Deref};
 ///
 /// ```rust
 /// use wynd::types::TextMessageEvent;
-/// use wynd::wynd::Wynd;
+/// use wynd::wynd::{Wynd, Standalone};
 ///
 /// #[tokio::main]
 /// async fn main() {
-///     let mut wynd = Wynd::new();
+///     let mut wynd: Wynd<Standalone> = Wynd::new();
 ///
 ///     wynd.on_connection(|conn| async move {
 ///         conn.on_text(|event, handle| async move {
@@ -75,11 +75,11 @@ impl Default for TextMessageEvent {
 ///
 /// ```rust
 /// use wynd::types::BinaryMessageEvent;
-/// use wynd::wynd::Wynd;
+/// use wynd::wynd::{Wynd, Standalone};
 ///
 /// #[tokio::main]
 /// async fn main() {
-///     let mut wynd = Wynd::new();
+///     let mut wynd: Wynd<Standalone> = Wynd::new();
 ///
 ///     wynd.on_connection(|conn| async move {
 ///         conn.on_binary(|event, handle| async move {
@@ -153,11 +153,11 @@ impl Default for BinaryMessageEvent {
 ///
 /// ```rust
 /// use wynd::types::CloseEvent;
-/// use wynd::wynd::Wynd;
+/// use wynd::wynd::{Wynd, Standalone};
 ///
 /// #[tokio::main]
 /// async fn main() {
-///     let mut wynd = Wynd::new();
+///     let mut wynd: Wynd<Standalone> = Wynd::new();
 ///
 ///     wynd.on_connection(|conn| async move {
 ///         conn.on_close(|event| async move {
@@ -293,11 +293,11 @@ impl Display for CloseEvent {
 ///
 /// ```rust
 /// use wynd::types::WyndError;
-/// use wynd::wynd::Wynd;
+/// use wynd::wynd::{Wynd, Standalone};
 ///
 /// #[tokio::main]
 /// async fn main() {
-///     let mut wynd = Wynd::new();
+///     let mut wynd: Wynd<Standalone> = Wynd::new();
 ///
 ///     // Handle server-level errors
 ///     wynd.on_error(|err| async move {
@@ -314,6 +314,7 @@ impl Display for CloseEvent {
 ///     });
 /// }
 /// ```
+#[derive(Debug)]
 pub struct WyndError {
     /// The internal error message.
     inner: String,
@@ -354,3 +355,5 @@ impl Display for WyndError {
         write!(f, "{}", self.inner)
     }
 }
+
+impl std::error::Error for WyndError {}

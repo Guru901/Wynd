@@ -9,11 +9,11 @@ Practical how-tos and best practices for common WebSocket server tasks with Wynd
 A simple echo server that sends back any message it receives:
 
 ```rust
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, Standalone};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
 
     wynd.on_connection(|conn| async move {
         conn.on_open(|handle| async move {
@@ -41,14 +41,14 @@ async fn main() {
 Send messages to all connected clients:
 
 ```rust
-use wynd::wynd::Wynd;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use wynd::wynd::{Wynd, Standalone};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
     let clients: Arc<Mutex<HashMap<u64, Arc<wynd::conn::ConnectionHandle>>>> = Arc::new(Mutex::new(HashMap::new()));
 
     wynd.on_connection(|conn| async move {
@@ -113,14 +113,14 @@ Integrate WebSocket functionality with HTTP server using ripress:
 
 ```rust
 use ripress::{app::App, types::RouterFns};
-use wynd::wynd::Wynd;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use wynd::wynd::{Wynd, WithRipress};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<WithRipress> = Wynd::new();
     let mut app = App::new();
     let clients: Arc<Mutex<HashMap<u64, Arc<wynd::conn::ConnectionHandle>>>> = Arc::new(Mutex::new(HashMap::new()));
 
@@ -363,9 +363,11 @@ conn.on_binary(|msg, handle| async move {
 Handle errors at all levels:
 
 ```rust
+use wynd::wynd::{Wynd, Standalone};
+
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
 
     wynd.on_connection(|conn| async move {
         conn.on_open(|handle| async move {
@@ -648,11 +650,13 @@ mod tests {
 Test your WebSocket server:
 
 ```rust
+use wynd::wynd::{Wynd, Standalone};
+
 #[tokio::test]
 async fn test_echo_server() {
     // Start server in background
     let server_handle = tokio::spawn(async {
-        let mut wynd = Wynd::new();
+        let mut wynd: Wynd<Standalone> = Wynd::new();
         wynd.on_connection(|conn| async move {
             conn.on_text(|msg, handle| async move {
                 let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
@@ -693,7 +697,7 @@ async fn main() {
     // Initialize logging
     tracing_subscriber::fmt::init();
 
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
 
     // Add metrics
     let connection_count = Arc::new(AtomicUsize::new(0));

@@ -29,11 +29,11 @@ tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 Create a simple echo server:
 
 ```rust
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, Standalone};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
 
     wynd.on_connection(|conn| async move {
         conn.on_text(|msg, handle| async move {
@@ -53,14 +53,13 @@ async fn main() {
 
 Use the `with-ripress` feature to serve both HTTP and WebSocket on the same port:
 
-
 ```rust
 use ripress::{app::App, types::RouterFns};
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, WithRipress};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<WithRipress> = Wynd::new();
     let mut app = App::new();
 
     wynd.on_connection(|conn| async move {

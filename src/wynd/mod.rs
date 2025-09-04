@@ -11,11 +11,11 @@
 //! ## Example
 //!
 //! ```rust
-//! use wynd::wynd::Wynd;
+//! use wynd::wynd::{Wynd, Standalone};
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     let mut wynd = Wynd::new();
+//!     let mut wynd: Wynd<Standalone> = Wynd::new();
 //!
 //!     // Handle new connections
 //!     wynd.on_connection(|conn| async move {
@@ -94,11 +94,11 @@ pub(crate) type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>
 /// ## Example
 ///
 /// ```rust
-/// use wynd::wynd::Wynd;
+/// use wynd::wynd::{Wynd, Standalone};
 ///
 /// #[tokio::main]
 /// async fn main() {
-///     let mut wynd = Wynd::new();
+///     let mut wynd: Wynd<Standalone> = Wynd::new();
 ///
 ///     wynd.on_connection(|conn| async move {
 ///         println!("New connection: {}", conn.id());
@@ -190,9 +190,9 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
-    /// let mut wynd = Wynd::new();
+    /// let mut wynd: Wynd<Standalone> = Wynd::new();
     /// ```
     pub fn new() -> Self {
         Self {
@@ -217,9 +217,9 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
-    /// let mut wynd = Wynd::new();
+    /// let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     /// wynd.on_connection(|conn| async move {
     ///     println!("New connection: {}", conn.id());
@@ -256,9 +256,9 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
-    /// let mut wynd = Wynd::new();
+    /// let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     /// wynd.on_error(|err| async move {
     ///     eprintln!("Server error: {}", err);
@@ -285,9 +285,9 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
-    /// let mut wynd = Wynd::new();
+    /// let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
     /// wynd.on_close(|| {
     ///     println!("Server shutting down");
@@ -319,11 +319,11 @@ where
     /// ## Example
     ///
     /// ```rust
-    /// use wynd::wynd::Wynd;
+    /// use wynd::wynd::{Wynd, Standalone};
     ///
     /// #[tokio::main]
     /// async fn main() {
-    ///     let mut wynd = Wynd::new();
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
     ///     
     ///     // Set up handlers...
     ///     

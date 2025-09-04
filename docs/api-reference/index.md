@@ -20,9 +20,9 @@ The main WebSocket server type that manages connections and server lifecycle.
 #### Example
 
 ```rust
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, Standalone};
 
-let mut wynd = Wynd::new();
+let mut wynd: Wynd<Standalone> = Wynd::new();
 
 wynd.on_connection(|conn| async move {
     // Handle new connection
@@ -44,9 +44,9 @@ When using the `with-ripress` feature, you can integrate Wynd with ripress HTTP 
 
 ```rust
 use ripress::{app::App, types::RouterFns};
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, Standalone};
 
-let mut wynd = Wynd::new();
+let mut wynd: Wynd<Standalone> = Wynd::new();
 let mut app = App::new();
 
 wynd.on_connection(|conn| async move {
@@ -265,11 +265,11 @@ When using the `with-ripress` feature, Wynd provides seamless integration with r
 
 ```rust
 use ripress::{app::App, types::RouterFns};
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, WithRipress};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<WithRipress> = Wynd::new();
     let mut app = App::new();
 
     // Configure WebSocket handlers

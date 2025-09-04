@@ -7,11 +7,11 @@ This section provides practical examples of using Wynd for different WebSocket s
 A simple echo server that sends back any message it receives.
 
 ```rust
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, Standalone};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
 
     wynd.on_connection(|conn| async move {
         conn.on_open(|handle| async move {
@@ -44,14 +44,14 @@ A server that serves both HTTP requests and WebSocket connections using ripress 
 
 ```rust
 use ripress::{app::App, types::RouterFns};
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, WithRipress};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<WithRipress> = Wynd::new();
     let mut app = App::new();
     let clients: Arc<Mutex<HashMap<u64, Arc<wynd::conn::ConnectionHandle>>>> = Arc::new(Mutex::new(HashMap::new()));
 
@@ -194,14 +194,14 @@ async fn broadcast_message(
 A simple chat room that broadcasts messages to all connected clients.
 
 ```rust
-use wynd::wynd::Wynd;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use wynd::wynd::{Wynd, Standalone};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
     let clients: Arc<Mutex<HashMap<u64, Arc<wynd::conn::ConnectionHandle>>>> = Arc::new(Mutex::new(HashMap::new()));
 
     wynd.on_connection(|conn| async move {
@@ -271,11 +271,11 @@ async fn broadcast_message(
 A server that handles binary data and processes it.
 
 ```rust
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, Standalone};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
 
     wynd.on_connection(|conn| async move {
         conn.on_open(|handle| async move {
@@ -322,11 +322,11 @@ async fn main() {
 A server that handles different commands from clients.
 
 ```rust
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, Standalone};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
 
     wynd.on_connection(|conn| async move {
         conn.on_open(|handle| async move {
@@ -387,11 +387,11 @@ Available commands:
 A server that demonstrates proper error handling.
 
 ```rust
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, Standalone};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
 
     wynd.on_connection(|conn| async move {
         conn.on_open(|handle| async move {
