@@ -337,24 +337,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_connection_timeout() {
-        let mut wynd: Wynd<Standalone> = Wynd::new();
-
-        wynd.on_connection(|conn| async move {
-            conn.on_open(|_handle| async move {}).await;
-        });
-
-        // Create a mock stream that will timeout during handshake
-        // This would require mocking the TCP stream, which is complex
-        // For now, we'll test the timeout logic conceptually
-
-        // The timeout logic is in handle_connection method
-        // It should timeout after 10 seconds if handshake doesn't complete
-
-        // This test verifies the structure exists, actual timeout testing
-        // would require more sophisticated mocking
-        assert!(true); // Placeholder - timeout logic exists in code
-    }
+    // TODO: Add test for connection timeout behavior once proper mocking infrastructure is in place
 
     #[cfg(feature = "with-ripress")]
     mod ripress_tests {
