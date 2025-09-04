@@ -314,6 +314,7 @@ impl Display for CloseEvent {
 ///     });
 /// }
 /// ```
+#[derive(Debug)]
 pub struct WyndError {
     /// The internal error message.
     inner: String,
@@ -354,3 +355,5 @@ impl Display for WyndError {
         write!(f, "{}", self.inner)
     }
 }
+
+impl std::error::Error for WyndError {}

@@ -15,7 +15,7 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust
+//! ```no_run
 //! use wynd::wynd::{Wynd, Standalone};
 //!
 //! #[tokio::main]
@@ -39,9 +39,9 @@
 //!
 //!     wynd.listen(8080, || {
 //!         println!("Listening on port 8080");
-//!     });
-//!     //.await
-//!     //.unwrap();
+//!     })
+//!     .await
+//!     .unwrap();
 //! }
 //! ```
 //!
