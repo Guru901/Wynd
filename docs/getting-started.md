@@ -20,11 +20,11 @@ cargo add tokio@1 --features tokio/macros,rt-multi-thread
 Replace `src/main.rs` with the following minimal example:
 
 ```rust
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, Standalone};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
 
     wynd.on_connection(|conn| async move {
         println!("New connection established: {}", conn.id());
@@ -99,11 +99,11 @@ Then create a combined server:
 
 ```rust
 use ripress::{app::App, types::RouterFns};
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, WithRipress};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<WithRipress> = Wynd::new();
     let mut app = App::new();
 
     wynd.on_connection(|conn| async move {

@@ -24,11 +24,11 @@ cargo add tokio@1 --features tokio/macros,rt-multi-thread
 Let's start with a simple echo server to understand the basics:
 
 ```rust
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, Standalone};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
 
     wynd.on_connection(|conn| async move {
         println!("New connection established: {}", conn.id());
@@ -89,13 +89,13 @@ Send messages and see them echoed back!
 Now let's track all connected clients so we can broadcast messages:
 
 ```rust
-use wynd::wynd::Wynd;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use wynd::wynd::{Wynd, Standalone};
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
     let clients: Arc<Mutex<HashMap<u64, Arc<wynd::conn::ConnectionHandle>>>> = Arc::new(Mutex::new(HashMap::new()));
 
     wynd.on_connection(|conn| async move {
@@ -171,7 +171,7 @@ async fn broadcast_message(
 Let's add user names to make the chat more personal:
 
 ```rust
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, Standalone};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -183,7 +183,7 @@ struct ChatUser {
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
     let users: Arc<Mutex<HashMap<u64, ChatUser>>> = Arc::new(Mutex::new(HashMap::new()));
 
     wynd.on_connection(|conn| async move {
@@ -277,7 +277,7 @@ async fn broadcast_message(
 Let's add more useful commands:
 
 ```rust
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, Standalone};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -287,9 +287,10 @@ struct ChatUser {
     handle: Arc<wynd::conn::ConnectionHandle>,
 }
 
+
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
     let users: Arc<Mutex<HashMap<u64, ChatUser>>> = Arc::new(Mutex::new(HashMap::new()));
 
     wynd.on_connection(|conn| async move {
@@ -422,7 +423,7 @@ async fn broadcast_message(
 Let's add proper error handling:
 
 ```rust
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, Standalone};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -434,7 +435,7 @@ struct ChatUser {
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<Standalone> = Wynd::new();
     let users: Arc<Mutex<HashMap<u64, ChatUser>>> = Arc::new(Mutex::new(HashMap::new()));
 
     wynd.on_connection(|conn| async move {
@@ -618,7 +619,7 @@ Then create a combined server:
 
 ```rust
 use ripress::{app::App, types::RouterFns};
-use wynd::wynd::Wynd;
+use wynd::wynd::{Wynd, WithRipress};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -631,7 +632,7 @@ struct ChatUser {
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<WithRipress> = Wynd::new();
     let mut app = App::new();
     let users: Arc<Mutex<HashMap<u64, ChatUser>>> = Arc::new(Mutex::new(HashMap::new()));
 
