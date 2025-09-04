@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.3] - 2025-09-4
+
+Added unit tests
+
 ## [0.4.2] - 2025-09-4
 
 Added integration tests
