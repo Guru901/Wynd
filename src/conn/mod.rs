@@ -52,6 +52,7 @@
 
 use std::{net::SocketAddr, sync::Arc}; // ← newly added import
 
+use futures::FutureExt;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     sync::Mutex,
@@ -530,10 +531,12 @@ where
         Fut: Future<Output = ()> + Send + 'static,
     {
         let text_message_handler = Arc::clone(&self.text_message_handler);
-        tokio::spawn(async move {
+        tokio::task::block_in_place(|| {}); // optional: remove; placeholder to highlight sync intent
+        let text_message_handler_fut = async move {
             let mut lock = text_message_handler.lock().await;
             *lock = Some(Box::new(move |msg, handle| Box::pin(handler(msg, handle))));
-        });
+        };
+        text_message_handler_fut.now_or_never();
     }
 
     /// Registers a handler for connection close events.
@@ -634,7 +637,7 @@ where
                 Some(Ok(Message::Close(close_frame))) => {
                     let close_event = match close_frame {
                         Some(e) => CloseEvent::new(e.code.into(), e.reason.to_string()),
-                        None => CloseEvent::new(1000, "Normal closure".to_string()),
+                        None => CloseEvent::new(1005, "No status received".to_string()),
                     };
 
                     // Connection closed

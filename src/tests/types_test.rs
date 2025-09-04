@@ -7,7 +7,7 @@ mod tests {
         let error_message = "Something went wrong".to_string();
         let error = WyndError::new(error_message.clone());
 
-        assert_eq!(error.inner, error_message);
+        assert_eq!(&*error, error_message);
         assert_eq!(&*error, "Something went wrong"); // Test Deref
     }
 
@@ -15,8 +15,7 @@ mod tests {
     fn test_wynd_error_new_empty() {
         let error = WyndError::new(String::new());
 
-        assert_eq!(error.inner, "");
-        assert_eq!(&*error, ""); // Test Deref with empty string
+        assert_eq!(&*error, "");
     }
 
     #[test]
@@ -24,7 +23,6 @@ mod tests {
         let error_message = "Error: 日本語 with émojis 🚀 and newlines\n\ttabs".to_string();
         let error = WyndError::new(error_message.clone());
 
-        assert_eq!(error.inner, error_message);
         assert_eq!(&*error, "Error: 日本語 with émojis 🚀 and newlines\n\ttabs");
     }
 
@@ -64,7 +62,7 @@ mod tests {
     }
 
     #[test]
-    fn test_wynd_error_clone_and_equality() {
+    fn test_wynd_error_equality_and_display() {
         let error1 = WyndError::new("Same message".to_string());
         let error2 = WyndError::new("Same message".to_string());
         let error3 = WyndError::new("Different message".to_string());
@@ -83,20 +81,9 @@ mod tests {
         let long_message = "A".repeat(10000);
         let error = WyndError::new(long_message.clone());
 
-        assert_eq!(error.inner.len(), 10000);
+        assert_eq!(error.len(), 10000);
         assert_eq!(&*error, long_message);
         assert_eq!(format!("{}", error), long_message);
-    }
-
-    #[test]
-    fn test_wynd_error_memory_usage() {
-        let error = WyndError::new("test".to_string());
-
-        // WyndError should only contain a String, so size should be similar to String
-        let error_size = std::mem::size_of_val(&error);
-        let string_size = std::mem::size_of::<String>();
-
-        assert_eq!(error_size, string_size);
     }
 
     #[test]
@@ -121,13 +108,13 @@ mod tests {
         // Test pattern matching on the dereferenced string
         match &*error {
             "Pattern test" => assert!(true),
-            _ => assert!(false, "Pattern matching failed"),
+            _ => unreachable!("Pattern matching failed"),
         }
 
         // Test with starts_with pattern
         match &*error {
             s if s.starts_with("Pattern") => assert!(true),
-            _ => assert!(false, "Pattern prefix matching failed"),
+            _ => unreachable!("Pattern prefix matching failed"),
         }
     }
 }

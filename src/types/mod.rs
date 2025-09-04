@@ -297,7 +297,7 @@ impl Display for CloseEvent {
 #[derive(Debug)]
 pub struct WyndError {
     /// The internal error message.
-    pub(crate) inner: String,
+    inner: String,
 }
 
 impl Deref for WyndError {
