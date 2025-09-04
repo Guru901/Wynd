@@ -406,9 +406,10 @@ mod tests {
             // but we can verify it gets past the header checks
             let response = handler(req).await.unwrap();
 
-            // Should not return 400 for properly formatted WebSocket request
-            // (though it may fail later in the upgrade process)
-            assert_ne!(response.status(), 400);
+            // Should fail during upgrade (not header check): expect 400 with specific body
+            assert_eq!(response.status(), 400);
+            let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+            assert_eq!(&body[..], b"WebSocket upgrade failed");
         }
     }
 
