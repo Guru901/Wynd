@@ -308,11 +308,13 @@ mod tests {
             conn.on_open(|_handle| async move {}).await;
         });
 
-        // Try to bind to an invalid port (0) to trigger an error
-        let result = timeout(Duration::from_millis(100), wynd.listen(0, || {})).await;
+        // Force bind failure by holding the port open
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
 
-        // Should either timeout or return an error
-        assert!(result.is_err() || result.unwrap().is_err());
+        // listen() should fail immediately with EADDRINUSE
+        let result = wynd.listen(port, || {}).await;
+        assert!(result.is_err());
     }
 
     #[test]
@@ -337,24 +339,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_connection_timeout() {
-        let mut wynd: Wynd<Standalone> = Wynd::new();
-
-        wynd.on_connection(|conn| async move {
-            conn.on_open(|_handle| async move {}).await;
-        });
-
-        // Create a mock stream that will timeout during handshake
-        // This would require mocking the TCP stream, which is complex
-        // For now, we'll test the timeout logic conceptually
-
-        // The timeout logic is in handle_connection method
-        // It should timeout after 10 seconds if handshake doesn't complete
-
-        // This test verifies the structure exists, actual timeout testing
-        // would require more sophisticated mocking
-        assert!(true); // Placeholder - timeout logic exists in code
-    }
+    // TODO: Add test for connection timeout behavior once proper mocking infrastructure is in place
 
     #[cfg(feature = "with-ripress")]
     mod ripress_tests {
@@ -421,9 +406,10 @@ mod tests {
             // but we can verify it gets past the header checks
             let response = handler(req).await.unwrap();
 
-            // Should not return 400 for properly formatted WebSocket request
-            // (though it may fail later in the upgrade process)
-            assert_ne!(response.status(), 400);
+            // Should fail during upgrade (not header check): expect 400 with specific body
+            assert_eq!(response.status(), 400);
+            let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+            assert_eq!(&body[..], b"WebSocket upgrade failed");
         }
     }
 
