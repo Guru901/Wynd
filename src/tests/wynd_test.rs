@@ -308,11 +308,13 @@ mod tests {
             conn.on_open(|_handle| async move {}).await;
         });
 
-        // Try to bind to a privileged port without permissions (likely to fail)
-        let result = timeout(Duration::from_millis(100), wynd.listen(80, || {})).await;
+        // Force bind failure by holding the port open
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
 
-        // Should either timeout or return an error
-        assert!(result.is_err() || result.unwrap().is_err());
+        // listen() should fail immediately with EADDRINUSE
+        let result = wynd.listen(port, || {}).await;
+        assert!(result.is_err());
     }
 
     #[test]
