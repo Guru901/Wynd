@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.2] - 2025-09-4
+
+Added integration tests
+Fixed Docs
+Added `WyndError` derive
+
 ## [0.4.1] - 2025-09-4
 
 Fixed cyclic dependency issues when using with ripress
