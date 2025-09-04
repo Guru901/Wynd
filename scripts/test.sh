@@ -14,11 +14,7 @@ async fn main() {
     let mut wynd = Wynd::new();
 
     wynd.on_connection(|conn| async move {
-        println!("id: {}", conn.id());
-        println!("remote_addr: {}", conn.addr());
-
         conn.on_open(|handle| async move {
-            println!("Client connected");
             handle
                 .send_text("Hello from ripress and wynd!")
                 .await
@@ -27,20 +23,11 @@ async fn main() {
         .await;
 
         conn.on_text(|event, handle| async move {
-            println!("Received text: {:?}", event.data);
             handle.send_text(&event.data).await.unwrap();
         });
 
         conn.on_binary(|event, handle| async move {
-            println!("Received binary: {:?}", event.data);
             handle.send_binary(event.data.to_vec()).await.unwrap();
-        });
-
-        conn.on_close(|event| async move {
-            println!(
-                "Client disconnected  code : {:?}, reason: {:?}",
-                event.code, event.reason
-            );
         });
     });
 
