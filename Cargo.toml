@@ -17,6 +17,9 @@ tokio-tungstenite = "0.18.0"
 uuid = { version = "1.18.0", features = ["v4"] }
 hyper-tungstenite = "0.9"
 
+[dev-dependencies]
+url = "2.5.7"
+
 [features]
 with-ripress = []
 default = []

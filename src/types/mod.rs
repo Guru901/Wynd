@@ -55,13 +55,6 @@ impl TextMessageEvent {
     }
 }
 
-impl Default for TextMessageEvent {
-    /// Creates a default text message event with empty data.
-    fn default() -> Self {
-        Self::new(String::new())
-    }
-}
-
 /// Represents a binary message event received from a WebSocket client.
 ///
 /// This event is triggered when binary data is received from the client.
@@ -117,13 +110,6 @@ impl BinaryMessageEvent {
     /// Returns a new `BinaryMessageEvent` with the provided data.
     pub(crate) fn new<T: Into<Vec<u8>>>(data: T) -> Self {
         Self { data: data.into() }
-    }
-}
-
-impl Default for BinaryMessageEvent {
-    /// Creates a default binary message event with empty data.
-    fn default() -> Self {
-        Self::new(Vec::new())
     }
 }
 
@@ -198,12 +184,6 @@ impl CloseEvent {
     /// Returns a new `CloseEvent` with the provided code and reason.
     pub(crate) fn new(code: u16, reason: String) -> Self {
         Self { code, reason }
-    }
-}
-
-impl Default for CloseEvent {
-    fn default() -> Self {
-        Self::new(1000, String::new())
     }
 }
 
@@ -340,13 +320,6 @@ impl WyndError {
     /// Returns a new `WyndError` with the provided message.
     pub(crate) fn new(err: String) -> Self {
         Self { inner: err }
-    }
-}
-
-impl Default for WyndError {
-    /// Creates a default Wynd error with empty message.
-    fn default() -> Self {
-        Self::new(String::new())
     }
 }
 

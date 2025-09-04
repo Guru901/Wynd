@@ -127,27 +127,28 @@ where
     ///
     /// This handler is called whenever a new WebSocket connection is established.
     /// It receives a `Connection` instance that can be used to set up event handlers.
-    connection_handler: Option<Box<dyn Fn(Connection<T>) -> BoxFuture<()> + Send + Sync>>,
+    pub(crate) connection_handler:
+        Option<Box<dyn Fn(Connection<T>) -> BoxFuture<()> + Send + Sync>>,
 
-    addr: SocketAddr,
+    pub(crate) addr: SocketAddr,
 
     /// Handler for server-level errors.
     ///
     /// This handler is called when server-level errors occur, such as
     /// connection acceptance failures or WebSocket handshake errors.
-    error_handler: Option<Box<dyn Fn(WyndError) -> BoxFuture<()> + Send + Sync>>,
+    pub(crate) error_handler: Option<Box<dyn Fn(WyndError) -> BoxFuture<()> + Send + Sync>>,
 
     /// Handler for server shutdown.
     ///
     /// This handler is called when the server is shutting down, either
     /// due to an error or when the `Wynd` instance is dropped.
-    close_handler: Option<Box<dyn Fn() -> () + Send + Sync + 'static>>,
+    pub(crate) close_handler: Option<Box<dyn Fn() -> () + Send + Sync + 'static>>,
 
     /// Atomic counter for generating unique connection IDs.
     ///
     /// Each connection gets a unique ID that can be used for logging,
     /// debugging, and connection management.
-    next_connection_id: ConnectionId,
+    pub(crate) next_connection_id: ConnectionId,
 }
 
 /// Tells the library which type to use for the server.
