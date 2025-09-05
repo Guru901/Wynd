@@ -1,10 +1,20 @@
 {
-  "name": "tests",
+  "name": "wynd-tests",
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:ui": "playwright test --ui",
+    "test:report": "playwright show-report",
+    "test:install": "playwright install",
+    "test:install-deps": "playwright install-deps"
+  },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/node": "^24.3.1"
   },
   "peerDependencies": {
     "typescript": "^5"

@@ -11,11 +11,19 @@ test.describe("WebSocket error handling tests", () => {
         let errored = false;
         const done = () => resolve({ opened, errored });
         const timer = setTimeout(done, 5000);
-        ws.onopen = () => { opened = true; };
-        ws.onerror = () => { errored = true; clearTimeout(timer); done(); };
-        ws.onclose = () => { clearTimeout(timer); done(); };
+        ws.onopen = () => {
+          opened = true;
+        };
+        ws.onerror = () => {
+          errored = true;
+          clearTimeout(timer);
+          done();
+        };
+        ws.onclose = () => {
+          clearTimeout(timer);
+          done();
+        };
       });
-    }, invalidUrl);
     }, invalidUrl);
 
     expect(result.opened).toBe(false);

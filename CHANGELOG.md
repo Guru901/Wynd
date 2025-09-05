@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.4] - 2025-09-4
+
+Added contributing guide
+
 ## [0.4.3] - 2025-09-4
 
 Added unit tests
