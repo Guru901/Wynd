@@ -1,85 +1,89 @@
 import { test as base, expect } from "@playwright/test";
 
-// Extend the base test with WebSocket utilities
-export const test = base.extend<{
-  wsConnection: any;
-}>({
+type WSMessage = string | number[] | ArrayBuffer | Uint8Array | Blob;
+type WSConnection = {
+  connect(url: string): Promise<void>;
+  send(message: WSMessage): Promise<void>;
+  close(code?: number, reason?: string): Promise<void>;
+  waitForMessage(timeout?: number): Promise<void>;
+  getMessages(): Promise<any[]>;
+  clearMessages(): Promise<void>;
+  isConnected(): Promise<boolean>;
+};
+export const test = base.extend<{ wsConnection: WSConnection }>({
   wsConnection: async ({ page }, use) => {
-    let ws: WebSocket | undefined;
-
     await use({
       connect: async (url: string) => {
-        return new Promise((resolve, reject) => {
-          ws = new WebSocket(url);
-
-          ws.onopen = () => {
-            page.evaluate((wsInstance: WebSocket) => {
-              window.testWs = wsInstance;
+        await page.evaluate((wsUrl) => {
+          return new Promise<void>((resolve, reject) => {
+            const ws = new WebSocket(wsUrl);
+            ws.onopen = () => {
+              window.testWs = ws;
               window.wsMessages = [];
               window.wsConnected = true;
-            }, ws);
-            resolve(ws);
-          };
-
-          ws.onmessage = (event) => {
-            page.evaluate((data: string) => {
-              window.wsMessages?.push(data);
-            }, event.data);
-          };
-
-          ws.onerror = (error) => {
-            page.evaluate(() => {
-              window.wsError = error;
-            });
-            reject(error);
-          };
-
-          ws.onclose = () => {
-            page.evaluate(() => {
+              resolve();
+            };
+            ws.onmessage = (event) => {
+              window.wsMessages?.push(event.data);
+            };
+            ws.onerror = (event: any) => {
+              window.wsError = String(event?.message ?? event);
+              reject(new Error("WebSocket error"));
+            };
+            ws.onclose = () => {
               window.wsConnected = false;
-            });
-          };
-        });
+            };
+          });
+        }, url);
       },
-
-      send: async (message: string) => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(message);
-        }
+      send: async (message: WSMessage) => {
+        await page.evaluate((msg) => {
+          if (window.testWs && window.testWs.readyState === WebSocket.OPEN) {
+            window.testWs.send(msg);
+          }
+        }, message as any);
       },
-
-      close: async () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.close();
-        }
+      close: async (code?: number, reason?: string) => {
+        await page
+          .evaluate(
+            ({ code, reason }) => {
+              if (
+                window.testWs &&
+                window.testWs.readyState === WebSocket.OPEN
+              ) {
+                window.testWs.close(code, reason);
+              }
+            },
+            { code, reason }
+          )
+          .catch(() => {});
       },
-
       waitForMessage: async (timeout = 5000) => {
-        return page.waitForFunction(
+        await page.waitForFunction(
           () => window.wsMessages && window.wsMessages.length > 0,
-          { timeout },
+          { timeout }
         );
       },
-
       getMessages: async () => {
         return page.evaluate(() => window.wsMessages || []);
       },
-
       clearMessages: async () => {
-        return page.evaluate(() => {
+        await page.evaluate(() => {
           window.wsMessages = [];
         });
       },
-
       isConnected: async () => {
         return page.evaluate(() => window.wsConnected === true);
       },
     });
-
-    // Cleanup
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
-    }
+    // Cleanup (best-effort)
+    await page
+      .evaluate(() => {
+        if (window.testWs && window.testWs.readyState === WebSocket.OPEN) {
+          window.testWs.close();
+        }
+      })
+      .catch(() => {});
   },
 });
 
