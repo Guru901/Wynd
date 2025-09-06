@@ -131,9 +131,9 @@ export class TestDataGenerator {
 export class ErrorHandlingUtils {
   static async handleWebSocketError(page: any, error: any) {
     console.error("WebSocket error:", error);
-    await page.evaluate(() => {
-      window.wsError = error;
-    });
+    await page.evaluate((err: any) => {
+      window.wsError = err;
+    }, error);
   }
 
   static async expectConnectionSuccess(page: any) {
