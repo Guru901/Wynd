@@ -97,7 +97,7 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
     const textMessages = await page.evaluate(() => window.wsMessages);
     const binaryMessages = await page.evaluate(() => window.binaryMessages);
 
-    expect(textMessages![1]).toBe("Text frame test");
+    expect(textMessages![2]).toBe("Text frame test");
     expect(binaryMessages![0]).toBeDefined();
   });
 
@@ -396,7 +396,7 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
-    expect(messages![1]).toBe("Masked message test");
+    expect(messages![2]).toBe("Masked message test");
   });
 
   test.afterEach(async ({ page }) => {
