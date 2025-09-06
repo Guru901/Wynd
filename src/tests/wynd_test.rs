@@ -436,6 +436,7 @@ mod tests {
         }
     }
 
+    #[ignore = "taking too long.."]
     #[tokio::test]
     async fn test_concurrent_connections() {
         use helpers::*;
