@@ -5,7 +5,6 @@ mod tests {
     use std::sync::atomic::Ordering;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
-    use tokio::net::TcpStream;
     use tokio::time::timeout;
     use tokio_tungstenite::{connect_async, tungstenite::Message};
     use url::Url;
@@ -330,25 +329,4 @@ mod tests {
     }
 
     // Integration test helper functions
-    mod helpers {
-        use super::*;
-
-        pub async fn wait_for_server_start(port: u16, max_attempts: u32) -> bool {
-            for _ in 0..max_attempts {
-                if let Ok(_) = TcpStream::connect(format!("127.0.0.1:{}", port)).await {
-                    return true;
-                }
-                tokio::time::sleep(Duration::from_millis(10)).await;
-            }
-            false
-        }
-
-        pub fn get_available_port() -> u16 {
-            use std::net::TcpListener;
-            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-            let port = listener.local_addr().unwrap().port();
-            drop(listener);
-            port
-        }
-    }
 }
