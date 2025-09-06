@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { WS_URL } from "./shared";
 
 test.describe("WebSocket Protocol Compliance Tests", () => {
   test.beforeAll(async () => {
@@ -14,11 +15,11 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
           window.testWs = ws;
           window.wsMessages = [];
           window.handshakeSuccessful = true;
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages?.push(event.data);
         };
 
         ws.onerror = (error) => {
@@ -37,7 +38,7 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
     expect(handshakeSuccessful).toBe(true);
 
     // Verify WebSocket is in OPEN state
-    const wsState = await page.evaluate(() => window.testWs.readyState);
+    const wsState = await page.evaluate(() => window.testWs?.readyState);
     expect(wsState).toBe(WebSocket.OPEN);
   });
 
@@ -50,14 +51,14 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
           window.testWs = ws;
           window.wsMessages = [];
           window.binaryMessages = [];
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
           if (typeof event.data === "string") {
-            window.wsMessages.push(event.data);
+            window.wsMessages?.push(event.data);
           } else {
-            window.binaryMessages.push(event.data);
+            window.binaryMessages?.push(event.data);
           }
         };
 
@@ -96,8 +97,8 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
     const textMessages = await page.evaluate(() => window.wsMessages);
     const binaryMessages = await page.evaluate(() => window.binaryMessages);
 
-    expect(textMessages[1]).toBe("Text frame test");
-    expect(binaryMessages[0]).toBeDefined();
+    expect(textMessages![1]).toBe("Text frame test");
+    expect(binaryMessages![0]).toBeDefined();
   });
 
   test("should handle WebSocket close frames correctly", async ({ page }) => {
@@ -109,11 +110,11 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
           window.testWs = ws;
           window.wsMessages = [];
           window.closeReceived = false;
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages?.push(event.data);
         };
 
         ws.onclose = (event) => {
@@ -161,11 +162,11 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
           window.testWs = ws;
           window.wsMessages = [];
           window.pingReceived = false;
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages?.push(event.data);
         };
 
         ws.onerror = reject;
@@ -193,7 +194,7 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
-    expect(messages.length).toBeGreaterThan(1);
+    expect(messages?.length).toBeGreaterThan(1);
   });
 
   test("should handle WebSocket extensions", async ({ page }) => {
@@ -206,11 +207,11 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
           window.testWs = ws;
           window.wsMessages = [];
           window.extensions = ws.extensions;
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages?.push(event.data);
         };
 
         ws.onerror = reject;
@@ -225,7 +226,7 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
     const extensions = await page.evaluate(() => window.extensions);
     const messages = await page.evaluate(() => window.wsMessages);
 
-    expect(messages[0]).toBe("Hello from ripress and wynd!");
+    expect(messages![0]).toBe("Hello from ripress and wynd!");
     // Extensions might be empty or contain compression info
     expect(typeof extensions).toBe("string");
   });
@@ -240,11 +241,11 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
           window.testWs = ws;
           window.wsMessages = [];
           window.protocol = ws.protocol;
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages?.push(event.data);
         };
 
         ws.onerror = reject;
@@ -259,7 +260,7 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
     const protocol = await page.evaluate(() => window.protocol);
     const messages = await page.evaluate(() => window.wsMessages);
 
-    expect(messages[0]).toBe("Hello from ripress and wynd!");
+    expect(messages![0]).toBe("Hello from ripress and wynd!");
     expect(protocol).toBe(""); // No subprotocol specified
   });
 
@@ -274,11 +275,11 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
         ws.onopen = () => {
           window.testWs = ws;
           window.wsMessages = [];
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages?.push(event.data);
         };
 
         ws.onerror = reject;
@@ -309,8 +310,8 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
-    expect(messages[0]).toBe(largeMessage);
-    expect(messages[0].length).toBe(65536);
+    expect(messages![0]).toBe(largeMessage);
+    expect(messages![0]!.length).toBe(65536);
   });
 
   test("should handle WebSocket control frames", async ({ page }) => {
@@ -321,11 +322,11 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
         ws.onopen = () => {
           window.testWs = ws;
           window.wsMessages = [];
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages?.push(event.data);
         };
 
         ws.onerror = reject;
@@ -353,7 +354,7 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
       );
 
       const messages = await page.evaluate(() => window.wsMessages);
-      expect(messages[messages.length - 1]).toBe(message);
+      expect(messages![messages!.length - 1]).toBe(message);
     }
   });
 
@@ -366,11 +367,11 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
         ws.onopen = () => {
           window.testWs = ws;
           window.wsMessages = [];
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages!.push(event.data);
         };
 
         ws.onerror = reject;
@@ -395,7 +396,7 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
-    expect(messages[1]).toBe("Masked message test");
+    expect(messages![1]).toBe("Masked message test");
   });
 
   test.afterEach(async ({ page }) => {

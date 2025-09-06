@@ -22,11 +22,11 @@ test.describe("Ripress Integration Tests", () => {
         ws.onopen = () => {
           window.testWs = ws;
           window.wsMessages = [];
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages?.push(event.data);
         };
 
         ws.onerror = reject;
@@ -39,7 +39,7 @@ test.describe("Ripress Integration Tests", () => {
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
-    expect(messages[0]).toBe("Hello from ripress and wynd!");
+    expect(messages![0]).toBe("Hello from ripress and wynd!");
   });
 
   test("should handle WebSocket upgrade requests correctly", async ({
@@ -54,11 +54,11 @@ test.describe("Ripress Integration Tests", () => {
           window.testWs = ws;
           window.wsMessages = [];
           window.upgradeSuccessful = true;
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages?.push(event.data);
         };
 
         ws.onerror = (error) => {
@@ -82,7 +82,7 @@ test.describe("Ripress Integration Tests", () => {
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
-    expect(messages[0]).toBe("Hello from ripress and wynd!");
+    expect(messages![0]).toBe("Hello from ripress and wynd!");
   });
 
   test("should handle mixed HTTP and WebSocket traffic", async ({ page }) => {
@@ -103,11 +103,11 @@ test.describe("Ripress Integration Tests", () => {
         ws.onopen = () => {
           window.testWs = ws;
           window.wsMessages = [];
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages?.push(event.data);
         };
 
         ws.onerror = reject;
@@ -148,11 +148,11 @@ test.describe("Ripress Integration Tests", () => {
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
-    expect(messages.length).toBe(wsMessages);
+    expect(messages!.length).toBe(wsMessages);
 
     // Verify all messages were echoed correctly
     for (let i = 0; i < wsMessages; i++) {
-      expect(messages[i]).toBe(`Mixed traffic message ${i}`);
+      expect(messages![i]).toBe(`Mixed traffic message ${i}`);
     }
   });
 
@@ -198,11 +198,11 @@ test.describe("Ripress Integration Tests", () => {
                 window.testWs = ws;
                 window.wsMessages = [];
                 window.clientId = clientId;
-                resolve();
+                resolve(undefined);
               };
 
               ws.onmessage = (event) => {
-                window.wsMessages.push(event.data);
+                window.wsMessages?.push(event.data);
               };
 
               ws.onerror = reject;
@@ -260,7 +260,7 @@ test.describe("Ripress Integration Tests", () => {
         wsPages.map((page) =>
           page.evaluate(() => ({
             clientId: window.clientId,
-            messageCount: window.wsMessages.length,
+            messageCount: window.wsMessages!.length,
             connectionAlive:
               window.testWs && window.testWs.readyState === WebSocket.OPEN,
           }))
@@ -289,11 +289,11 @@ test.describe("Ripress Integration Tests", () => {
         ws.onopen = () => {
           window.testWs = ws;
           window.wsMessages = [];
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages!.push(event.data);
         };
 
         ws.onerror = reject;
@@ -306,7 +306,7 @@ test.describe("Ripress Integration Tests", () => {
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
-    expect(messages[0]).toBe("Hello from ripress and wynd!");
+    expect(messages![0]).toBe("Hello from ripress and wynd!");
 
     // Test that HTTP still works on root path
     const httpResponse = await page.goto("http://localhost:3000");
@@ -323,11 +323,11 @@ test.describe("Ripress Integration Tests", () => {
           window.testWs = ws;
           window.wsMessages = [];
           window.connectionClosed = false;
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages?.push(event.data);
         };
 
         ws.onclose = () => {
@@ -385,7 +385,7 @@ test.describe("Ripress Integration Tests", () => {
           ws.onopen = () => {
             window.testWs = ws;
             window.wsMessages = [];
-            resolve();
+            resolve(undefined);
           };
 
           ws.onerror = reject;
@@ -409,11 +409,11 @@ test.describe("Ripress Integration Tests", () => {
         ws.onopen = () => {
           window.testWs = ws;
           window.wsMessages = [];
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages!.push(event.data);
         };
 
         ws.onerror = reject;
@@ -426,7 +426,7 @@ test.describe("Ripress Integration Tests", () => {
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
-    expect(messages[0]).toBe("Hello from ripress and wynd!");
+    expect(messages![0]).toBe("Hello from ripress and wynd!");
 
     // Send message with special content
     await page.evaluate(() => {
@@ -441,7 +441,7 @@ test.describe("Ripress Integration Tests", () => {
     );
 
     const allMessages = await page.evaluate(() => window.wsMessages);
-    expect(allMessages[1]).toBe("Custom header test message");
+    expect(allMessages![1]).toBe("Custom header test message");
   });
 
   test("should handle WebSocket subprotocols", async ({ page }) => {
@@ -454,11 +454,11 @@ test.describe("Ripress Integration Tests", () => {
           window.testWs = ws;
           window.wsMessages = [];
           window.protocol = ws.protocol;
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages!.push(event.data);
         };
 
         ws.onerror = reject;
@@ -473,7 +473,7 @@ test.describe("Ripress Integration Tests", () => {
     const messages = await page.evaluate(() => window.wsMessages);
     const protocol = await page.evaluate(() => window.protocol);
 
-    expect(messages[0]).toBe("Hello from ripress and wynd!");
+    expect(messages![0]).toBe("Hello from ripress and wynd!");
     expect(protocol).toBe(""); // No subprotocol specified
   });
 
@@ -488,11 +488,11 @@ test.describe("Ripress Integration Tests", () => {
         ws.onopen = () => {
           window.testWs = ws;
           window.wsMessages = [];
-          resolve();
+          resolve(undefined);
         };
 
         ws.onmessage = (event) => {
-          window.wsMessages.push(event.data);
+          window.wsMessages!.push(event.data);
         };
 
         ws.onerror = reject;
@@ -523,8 +523,8 @@ test.describe("Ripress Integration Tests", () => {
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
-    expect(messages[0]).toBe(largeMessage);
-    expect(messages[0].length).toBe(10000);
+    expect(messages![0]).toBe(largeMessage);
+    expect(messages![0]!.length).toBe(10000);
   });
 
   test.afterEach(async ({ page }) => {

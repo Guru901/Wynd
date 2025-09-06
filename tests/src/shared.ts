@@ -1,5 +1,7 @@
 // Shared configuration and utilities for WebSocket tests
 
+import { expect } from "@playwright/test";
+
 export const WS_URL = "ws://localhost:3000/ws";
 export const HTTP_URL = "http://localhost:3000";
 
@@ -47,7 +49,7 @@ export class WebSocketTestUtils {
   }
 
   static async sendMessage(page: any, message: string) {
-    return page.evaluate((msg) => {
+    return page.evaluate((msg: string) => {
       if (window.testWs && window.testWs.readyState === WebSocket.OPEN) {
         window.testWs.send(msg);
       }
@@ -117,7 +119,7 @@ export class TestDataGenerator {
       "Empty string test:",
       "",
     ];
-    return messages[Math.floor(Math.random() * messages.length)];
+    return String(messages[Math.floor(Math.random() * messages.length)]);
   }
 
   static generateSequentialMessages(count: number): string[] {
@@ -152,4 +154,8 @@ export class ErrorHandlingUtils {
       expect(messages[messages.length - 1]).toBe(expectedMessage);
     }
   }
+}
+
+export function arraysEqual(a: Array<any>, b: Array<any>): boolean {
+  return a.length === b.length && a.every((val, i) => val === b[i]);
 }

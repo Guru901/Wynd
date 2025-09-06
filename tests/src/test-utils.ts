@@ -5,7 +5,7 @@ export const test = base.extend<{
   wsConnection: any;
 }>({
   wsConnection: async ({ page }, use) => {
-    let ws: WebSocket | null = null;
+    let ws: WebSocket | undefined;
 
     await use({
       connect: async (url: string) => {
@@ -13,7 +13,7 @@ export const test = base.extend<{
           ws = new WebSocket(url);
 
           ws.onopen = () => {
-            page.evaluate((wsInstance) => {
+            page.evaluate((wsInstance: WebSocket) => {
               window.testWs = wsInstance;
               window.wsMessages = [];
               window.wsConnected = true;
@@ -22,8 +22,8 @@ export const test = base.extend<{
           };
 
           ws.onmessage = (event) => {
-            page.evaluate((data) => {
-              window.wsMessages.push(data);
+            page.evaluate((data: string) => {
+              window.wsMessages?.push(data);
             }, event.data);
           };
 
@@ -57,7 +57,7 @@ export const test = base.extend<{
       waitForMessage: async (timeout = 5000) => {
         return page.waitForFunction(
           () => window.wsMessages && window.wsMessages.length > 0,
-          { timeout }
+          { timeout },
         );
       },
 

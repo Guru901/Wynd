@@ -12,7 +12,7 @@ test.describe("WebSocket binary message tests", () => {
         ws.onopen = () => {
           window.testWs = ws;
           window.wsMessages = [];
-          resolve();
+          resolve(undefined);
         };
         ws.onmessage = (e) => {
           window.wsMessages!.push(e.data);
@@ -41,14 +41,18 @@ test.describe("WebSocket binary message tests", () => {
     );
 
     // Validate we received identical content back
-    const echoed = await page.evaluate(async () => {
-      const data = window.wsMessages![0];
-      if (data instanceof ArrayBuffer) return Array.from(new Uint8Array(data));
-      if (data instanceof Blob) {
-        const buf = await data.arrayBuffer();
-        return Array.from(new Uint8Array(buf));
+    const echoed = await page.evaluate(() => {
+      if (!window.wsMessages || window.wsMessages.length === 0) return [];
+      const data = window.wsMessages[0] as any;
+      if (data instanceof ArrayBuffer) {
+        return Array.from(new Uint8Array(data));
+      } else if (data instanceof Blob) {
+        return (data.arrayBuffer() as Promise<ArrayBuffer>).then((buf) =>
+          Array.from(new Uint8Array(buf))
+        );
+      } else {
+        return [];
       }
-      return [] as number[];
     });
 
     // If array was captured, it must match
