@@ -396,7 +396,7 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
-    expect(messages![2]).toBe("Masked message test");
+    expect(messages![messages!.length - 1]).toBe("Masked message test");
   });
 
   test.afterEach(async ({ page }) => {
