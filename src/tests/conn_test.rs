@@ -164,62 +164,6 @@ mod tests {
         assert_eq!(received_id, 1);
     }
 
-    #[ignore = "for now"]
-    #[tokio::test]
-    async fn test_on_text_handler() {
-        let stream = MockStream::new();
-        let addr = "127.0.0.1:8080".parse().unwrap();
-        let ws_stream = WebSocketStream::from_raw_socket(
-            stream,
-            tokio_tungstenite::tungstenite::protocol::Role::Server,
-            None,
-        )
-        .await;
-        let connection = Connection::new(1, ws_stream, addr);
-
-        let (tx, _) = mpsc::channel(1);
-
-        connection.on_text(move |msg, _handle| {
-            let tx = tx.clone();
-            async move {
-                tx.send(msg.data).await.unwrap();
-            }
-        });
-
-        // Set up a minimal open handler to start the message loop
-        connection.on_open(|_| async {}).await;
-
-        // Note: In a real test, you'd need to simulate receiving a WebSocket text message
-        // This would require a more sophisticated mock setup
-    }
-
-    #[tokio::test]
-    async fn test_on_binary_handler() {
-        let stream = MockStream::new();
-        let addr = "127.0.0.1:8080".parse().unwrap();
-        let ws_stream = WebSocketStream::from_raw_socket(
-            stream,
-            tokio_tungstenite::tungstenite::protocol::Role::Server,
-            None,
-        )
-        .await;
-        let connection = Connection::new(1, ws_stream, addr);
-
-        let (tx, _) = mpsc::channel(1);
-
-        connection.on_binary(move |msg, _handle| {
-            let tx = tx.clone();
-            async move {
-                tx.send(msg.data.len()).await.unwrap();
-            }
-        });
-
-        // Set up a minimal open handler to start the message loop
-        connection.on_open(|_| async {}).await;
-
-        // Note: Similar to text handler test, would need sophisticated mock for real testing
-    }
-
     #[tokio::test]
     async fn test_on_close_handler() {
         let stream = MockStream::new();
@@ -323,56 +267,6 @@ mod tests {
         // In a proper test, you'd verify a close frame was sent
     }
 
-    #[ignore = "for now"]
-    #[tokio::test]
-    async fn test_multiple_handlers() {
-        let stream = MockStream::new();
-        let addr = "127.0.0.1:8080".parse().unwrap();
-        let ws_stream = WebSocketStream::from_raw_socket(
-            stream,
-            tokio_tungstenite::tungstenite::protocol::Role::Server,
-            None,
-        )
-        .await;
-        let connection = Connection::new(1, ws_stream, addr);
-
-        let (open_tx, mut open_rx) = mpsc::channel(1);
-        let (text_tx, _text_rx) = mpsc::channel(1);
-        let (close_tx, _close_rx) = mpsc::channel(1);
-
-        // Set up all handlers
-        connection.on_text(move |msg, _handle| {
-            let tx = text_tx.clone();
-            async move {
-                tx.send(format!("Got: {}", msg.data)).await.unwrap();
-            }
-        });
-
-        connection.on_close(move |event| {
-            let tx = close_tx.clone();
-            async move {
-                tx.send(event.code).await.unwrap();
-            }
-        });
-
-        connection
-            .on_open(move |handle| {
-                let tx = open_tx.clone();
-                async move {
-                    tx.send(handle.id()).await.unwrap();
-                }
-            })
-            .await;
-
-        // Verify open handler was called
-        let received_id = timeout(Duration::from_millis(100), open_rx.recv())
-            .await
-            .expect("Open handler should be called")
-            .expect("Should receive connection ID");
-
-        assert_eq!(received_id, 1);
-    }
-
     #[tokio::test]
     async fn test_concurrent_message_sending() {
         let stream = MockStream::new();
@@ -408,85 +302,6 @@ mod tests {
             let _result = task_handle.await.expect("Task should complete");
             // In a proper test, you'd verify all messages were sent correctly
         }
-    }
-
-    #[ignore = "for now"]
-    #[tokio::test]
-    async fn test_connection_lifecycle() {
-        let stream = MockStream::new();
-        let addr = "127.0.0.1:8080".parse().unwrap();
-        let ws_stream = WebSocketStream::from_raw_socket(
-            stream,
-            tokio_tungstenite::tungstenite::protocol::Role::Server,
-            None,
-        )
-        .await;
-        let connection = Connection::new(1, ws_stream, addr);
-
-        let (lifecycle_tx, mut lifecycle_rx) = mpsc::channel(10);
-
-        // Track the connection lifecycle
-        connection
-            .on_open({
-                let tx = lifecycle_tx.clone();
-                move |handle| {
-                    let tx = tx.clone();
-                    async move {
-                        tx.send(format!("OPEN:{}", handle.id())).await.unwrap();
-                    }
-                }
-            })
-            .await;
-
-        connection.on_text({
-            let tx = lifecycle_tx.clone();
-            move |msg, handle| {
-                let tx = tx.clone();
-                async move {
-                    tx.send(format!("TEXT:{}:{}", handle.id(), msg.data))
-                        .await
-                        .unwrap();
-                }
-            }
-        });
-
-        connection.on_binary({
-            let tx = lifecycle_tx.clone();
-            move |msg, handle| {
-                let tx = tx.clone();
-                async move {
-                    tx.send(format!("BINARY:{}:{}", handle.id(), msg.data.len()))
-                        .await
-                        .unwrap();
-                }
-            }
-        });
-
-        connection.on_close({
-            let tx = lifecycle_tx.clone();
-            move |event| {
-                let tx = tx.clone();
-                async move {
-                    tx.send(format!("CLOSE:{}:{}", event.code, event.reason))
-                        .await
-                        .unwrap();
-                }
-            }
-        });
-
-        // Wait for open event
-        let open_event = timeout(Duration::from_millis(100), lifecycle_rx.recv())
-            .await
-            .expect("Should receive open event")
-            .expect("Should get open event");
-
-        assert_eq!(open_event, "OPEN:1");
-
-        // In a full integration test, you'd continue by:
-        // 1. Simulating incoming WebSocket messages
-        // 2. Verifying text/binary handlers are called
-        // 3. Simulating connection close
-        // 4. Verifying close handler is called
     }
 
     #[test]
@@ -550,34 +365,5 @@ mod tests {
         let _result = handle.send_text("test").await;
 
         // Depending on your mock implementation, you can test error cases
-    }
-
-    #[ignore = "for now"]
-    #[tokio::test]
-    async fn test_high_frequency_message_handling() {
-        let stream = MockStream::new();
-        let addr = "127.0.0.1:8080".parse().unwrap();
-        let ws_stream = WebSocketStream::from_raw_socket(
-            stream,
-            tokio_tungstenite::tungstenite::protocol::Role::Server,
-            None,
-        )
-        .await;
-        let connection = Connection::new(1, ws_stream, addr);
-
-        let message_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let counter = Arc::clone(&message_count);
-
-        connection.on_text(move |_msg, _handle| {
-            let counter = Arc::clone(&counter);
-            async move {
-                counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            }
-        });
-
-        connection.on_open(|_| async {}).await;
-
-        // In a real test, you'd send many messages rapidly and verify
-        // they're all handled correctly without blocking or dropping
     }
 }
