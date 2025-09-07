@@ -36,7 +36,7 @@ Enable integration with the [ripress](https://crates.io/crates/ripress) HTTP ser
 
 ```toml
 [dependencies]
-wynd = { version = "0.3", features = ["with-ripress"] }
+wynd = { version = "*", features = ["with-ripress"] }
 ripress = "1.8"
 ```
 
