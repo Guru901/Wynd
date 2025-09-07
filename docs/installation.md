@@ -23,7 +23,7 @@ Or manually in `Cargo.toml`:
 
 ```toml
 [dependencies]
-wynd = "0.3"
+wynd = "*"
 ```
 
 ## Feature flags

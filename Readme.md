@@ -22,7 +22,7 @@ Add Wynd to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-wynd = "0.3"
+wynd = "*"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 ```
 
