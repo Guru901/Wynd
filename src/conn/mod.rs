@@ -50,7 +50,7 @@
 //! }
 //! ```
 
-use std::{net::SocketAddr, sync::Arc}; // ← newly added import
+use std::{fmt::Debug, net::SocketAddr, sync::Arc}; // ← newly added import
 
 use futures::FutureExt;
 use tokio::{
@@ -167,7 +167,7 @@ where
     /// This is wrapped in an `Arc<Mutex<>>` to allow safe sharing
     /// between the connection and its handle.
     reader: Arc<Mutex<futures::stream::SplitStream<WebSocketStream<T>>>>,
-    writer: Arc<Mutex<futures::stream::SplitSink<WebSocketStream<T>, Message>>>,
+    pub(crate) writer: Arc<Mutex<futures::stream::SplitSink<WebSocketStream<T>, Message>>>,
 
     /// The remote address of the connection.
     ///
@@ -190,6 +190,18 @@ where
     state: Arc<Mutex<ConnState>>,
 }
 
+impl<T> std::fmt::Debug for Connection<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Connection")
+            .field("id", &self.id)
+            .field("addr", &self.addr)
+            .finish()
+    }
+}
+
 /// Represents the current state of a WebSocket connection.
 ///
 /// This enum is used internally to track the lifecycle of a connection,
@@ -200,7 +212,7 @@ where
 /// - `CLOSED`: The connection has been closed and cannot be used.
 /// - `CONNECTING`: The connection is in the process of being established.
 /// - `CLOSING`: The connection is in the process of closing.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ConnState {
     /// The connection is open and active.
     OPEN,

@@ -51,6 +51,7 @@
 
 #[cfg(feature = "with-ripress")]
 use futures::StreamExt;
+use futures::lock::Mutex;
 #[cfg(feature = "with-ripress")]
 use hyper_tungstenite::hyper;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -65,7 +66,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 use tokio_tungstenite::accept_async;
 
-use crate::conn::Connection;
+use crate::conn::{Connection, ConnectionHandle};
 use crate::types::WyndError;
 
 /// Type alias for connection ID counter.
@@ -128,7 +129,7 @@ where
     /// This handler is called whenever a new WebSocket connection is established.
     /// It receives a `Connection` instance that can be used to set up event handlers.
     pub(crate) connection_handler:
-        Option<Box<dyn Fn(Connection<T>) -> BoxFuture<()> + Send + Sync>>,
+        Option<Box<dyn Fn(Arc<Connection<T>>) -> BoxFuture<()> + Send + Sync>>,
 
     pub(crate) addr: SocketAddr,
 
@@ -149,6 +150,8 @@ where
     /// Each connection gets a unique ID that can be used for logging,
     /// debugging, and connection management.
     pub(crate) next_connection_id: ConnectionId,
+
+    pub clients: Arc<tokio::sync::Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
 }
 
 /// Tells the library which type to use for the server.
@@ -201,6 +204,7 @@ where
             error_handler: None,
             close_handler: None,
             next_connection_id: ConnectionId::new(0),
+            clients: Arc::new(tokio::sync::Mutex::new(Vec::new())),
             addr: SocketAddr::from(([0, 0, 0, 0], 8080)),
         }
     }
@@ -238,7 +242,7 @@ where
     /// ```
     pub fn on_connection<F, Fut>(&mut self, handler: F)
     where
-        F: Fn(Connection<T>) -> Fut + Send + Sync + 'static,
+        F: Fn(Arc<Connection<T>>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
         self.connection_handler = Some(Box::new(move |conn| Box::pin(handler(conn))));
@@ -349,7 +353,7 @@ where
     /// Returns `Ok(())` if the connection is handled successfully, or an error
     /// if the WebSocket handshake fails or other errors occur.
     async fn handle_connection(
-        &self,
+        &mut self,
         stream: T,
         addr: SocketAddr,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -368,8 +372,22 @@ where
 
         let connection = Connection::new(connection_id, websocket, addr);
 
+        let handle = Arc::new(ConnectionHandle {
+            id: connection.id(),
+            writer: Arc::clone(&connection.writer),
+            addr: self.addr,
+        });
+
+        let arc_connection = Arc::new(connection);
+
+        {
+            let mut clients = self.clients.lock().await;
+            clients.push((Arc::clone(&arc_connection), Arc::clone(&handle)));
+            println!("wynd.clients: {}", clients.len());
+        }
+
         // Initialize the connection with a default open handler to keep it alive
-        connection
+        arc_connection
             .on_open(|_handle| async move {
                 // Default handler that keeps the connection alive
                 // The connection will be managed by the message loop
@@ -377,7 +395,7 @@ where
             .await;
 
         if let Some(ref handler) = self.connection_handler {
-            handler(connection).await;
+            handler(arc_connection).await;
         }
 
         Ok(())
@@ -405,20 +423,26 @@ impl Wynd<TcpStream> {
         // Call the listening callback
         on_listening();
 
-        let wynd = Arc::new(self);
+        let wynd = Arc::new(Mutex::new(self));
 
         loop {
             match listener.accept().await {
                 Ok((stream, addr)) => {
                     let wynd_clone = Arc::clone(&wynd);
                     tokio::spawn(async move {
-                        if let Err(e) = wynd_clone.handle_connection(stream, addr).await {
+                        if let Err(e) = wynd_clone
+                            .lock()
+                            .await
+                            .handle_connection(stream, addr)
+                            .await
+                        {
                             eprintln!("Error handling connection: {}", e);
                         }
                     });
                 }
                 Err(e) => {
-                    let handler = wynd.error_handler.as_ref();
+                    let wynd_guard = wynd.lock().await;
+                    let handler = wynd_guard.error_handler.as_ref();
 
                     if let Some(handler) = handler {
                         handler(WyndError::new(e.to_string())).await;
