@@ -677,11 +677,13 @@ where
                         h(TextMessageEvent::new(text.to_string()), Arc::clone(&handle)).await;
                     }
                 }
-                Some(Ok(Message::Ping(_))) => {
-                    // TODO: Handle pings
+                Some(Ok(Message::Ping(payload))) => {
+                    // Reply with Pong to keep the connection healthy.
+                    let mut w = handle.writer.lock().await;
+                    let _ = futures::SinkExt::send(&mut *w, Message::Pong(payload)).await;
                 }
                 Some(Ok(Message::Pong(_))) => {
-                    // TODO: Handle pongs
+                    // Optional: update heartbeat/latency metrics here.
                 }
                 Some(Ok(Message::Binary(data))) => {
                     let handler = binary_message_handler.lock().await;
