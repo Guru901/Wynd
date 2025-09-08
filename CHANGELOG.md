@@ -2,6 +2,14 @@
 
 ## [0.4.4] - 2025-09-04
 
+## [0.5.0] - 2025-09-08
+
+Added state to every connection
+Added client registry to Wynd struct
+Broadcast messages to all clients
+Broadcast messages to a client with a specific ID
+
+## [0.4.4] - 2025-09-04
 Added contributing guide
 Added tests
 

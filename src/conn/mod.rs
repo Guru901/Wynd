@@ -381,12 +381,18 @@ where
     /// # Example
     ///
     /// ```
-    /// let state = conn.state().await;
-    /// match state {
-    ///     ConnState::OPEN => println!("Connection is open"),
-    ///     ConnState::CLOSED => println!("Connection is closed"),
-    ///     ConnState::CONNECTING => println!("Connection is connecting"),
-    ///     ConnState::CLOSING => println!("Connection is closing"),
+    /// use wynd::conn::ConnState;
+    /// use tokio::net::TcpStream;
+    /// use wynd::conn::Connection;
+    ///
+    /// async fn test(conn: &Connection<TcpStream>) {
+    ///     let state = conn.state().await;
+    ///     match state {
+    ///         ConnState::OPEN => println!("Connection is open"),
+    ///         ConnState::CLOSED => println!("Connection is closed"),
+    ///         ConnState::CONNECTING => println!("Connection is connecting"),
+    ///         ConnState::CLOSING => println!("Connection is closing"),
+    ///     }
     /// }
     /// ```
     pub async fn state(&self) -> ConnState {
