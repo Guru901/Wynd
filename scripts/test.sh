@@ -7,11 +7,12 @@ cd ./src
 touch main.rs
 
 echo '
+use tokio::net::TcpStream;
 use wynd::wynd::Wynd;
 
 #[tokio::main]
 async fn main() {
-    let mut wynd = Wynd::new();
+    let mut wynd: Wynd<TcpStream> = Wynd::new();
 
     wynd.on_connection(|conn| async move {
         conn.on_open(|handle| async move {
@@ -23,7 +24,7 @@ async fn main() {
         .await;
 
         conn.on_text(|event, handle| async move {
-            handle.send_text(&event.data).await.unwrap();
+            handle.broadcast.text(&event.data).await;
         });
 
         conn.on_binary(|event, handle| async move {
@@ -32,12 +33,11 @@ async fn main() {
     });
 
     wynd.listen(3000, || {
-        println!("Listening on port 3000");
+        println!("Server listening on port 3000");
     })
     .await
     .unwrap();
 }
-
 ' > main.rs
 
 cargo run &  # Start server in background
