@@ -375,7 +375,7 @@ where
         let handle = Arc::new(ConnectionHandle {
             id: connection.id(),
             writer: Arc::clone(&connection.writer),
-            addr: self.addr,
+            addr: addr,
         });
 
         let arc_connection = Arc::new(connection);
@@ -383,7 +383,6 @@ where
         {
             let mut clients = self.clients.lock().await;
             clients.push((Arc::clone(&arc_connection), Arc::clone(&handle)));
-            println!("wynd.clients: {}", clients.len());
         }
 
         // Initialize the connection with a default open handler to keep it alive
