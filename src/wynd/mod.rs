@@ -151,6 +151,11 @@ where
     /// debugging, and connection management.
     pub(crate) next_connection_id: ConnectionId,
 
+    /// Registry of active WebSocket connections.
+    ///
+    /// Each entry contains an Arc-wrapped Connection and its corresponding ConnectionHandle.
+    /// Connections are added when established and should be removed when closed.
+    /// Protected by a tokio Mutex for thread-safe access.
     pub clients: Arc<tokio::sync::Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
 }
 
