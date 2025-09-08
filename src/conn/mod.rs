@@ -304,7 +304,9 @@ where
     /// Broadcast a UTF-8 text message to every connected client.
     pub async fn text(&self, text: &str) {
         for client in self.clients.lock().await.iter() {
-            client.1.send_text(text).await.unwrap();
+            if let Err(e) = client.1.send_text(text).await {
+                eprintln!("Failed to broadcast to client {}: {}", client.1.id(), e);
+            }
         }
     }
     /// Broadcast a binary message to every connected client.
