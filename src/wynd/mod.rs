@@ -390,6 +390,19 @@ where
             clients.push((Arc::clone(&arc_connection), Arc::clone(&handle)));
         }
 
+        // Remove this connection from the registry when it closes
+        {
+            let clients_registry = Arc::clone(&self.clients);
+            let handle_id = handle.id();
+            arc_connection.on_close(move |_event| {
+                let clients_registry = Arc::clone(&clients_registry);
+                async move {
+                    let mut clients = clients_registry.lock().await;
+                    clients.retain(|(_c, h)| h.id() != handle_id);
+                }
+            });
+        }
+
         // Initialize the connection with a default open handler to keep it alive
         arc_connection
             .on_open(|_handle| async move {
