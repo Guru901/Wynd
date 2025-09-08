@@ -664,10 +664,6 @@ where
         reader: Arc<Mutex<futures::stream::SplitStream<WebSocketStream<T>>>>,
         state: Arc<Mutex<ConnState>>,
     ) {
-        {
-            let mut s = state.lock().await;
-            *s = ConnState::OPEN;
-        }
         loop {
             let msg = {
                 let mut rd = reader.lock().await;
