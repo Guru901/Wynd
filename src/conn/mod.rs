@@ -185,6 +185,31 @@ where
 
     /// Handler for connection close events.
     close_handler: CloseHandler,
+
+    /// State of the current connection.
+    state: Arc<Mutex<ConnState>>,
+}
+
+/// Represents the current state of a WebSocket connection.
+///
+/// This enum is used internally to track the lifecycle of a connection,
+/// including whether it is open, closed, in the process of connecting,
+/// or closing.
+///
+/// - `OPEN`: The connection is open and ready for communication.
+/// - `CLOSED`: The connection has been closed and cannot be used.
+/// - `CONNECTING`: The connection is in the process of being established.
+/// - `CLOSING`: The connection is in the process of closing.
+#[derive(Clone)]
+pub enum ConnState {
+    /// The connection is open and active.
+    OPEN,
+    /// The connection has been closed.
+    CLOSED,
+    /// The connection is being established.
+    CONNECTING,
+    /// The connection is in the process of closing.
+    CLOSING,
 }
 
 /// Handle for interacting with a WebSocket connection.
@@ -266,6 +291,7 @@ where
 
         Self {
             id,
+            state: Arc::new(Mutex::new(ConnState::CONNECTING)),
             reader: Arc::new(Mutex::new(reader)),
             writer: Arc::new(Mutex::new(writer)),
             addr,
@@ -332,6 +358,28 @@ where
     /// ```
     pub fn addr(&self) -> SocketAddr {
         self.addr
+    }
+
+    /// Returns the current state of the WebSocket connection.
+    ///
+    /// This method asynchronously acquires a lock on the internal state
+    /// and returns a clone of the current [`ConnState`]. The state can be
+    /// used to determine if the connection is open, closed, connecting, or closing.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let state = conn.state().await;
+    /// match state {
+    ///     ConnState::OPEN => println!("Connection is open"),
+    ///     ConnState::CLOSED => println!("Connection is closed"),
+    ///     ConnState::CONNECTING => println!("Connection is connecting"),
+    ///     ConnState::CLOSING => println!("Connection is closing"),
+    /// }
+    /// ```
+    pub async fn state(&self) -> ConnState {
+        let s = self.state.lock().await;
+        s.clone()
     }
 
     /// Registers a handler for connection open events.
@@ -404,6 +452,7 @@ where
         let close_handler_clone = Arc::clone(&self.close_handler);
         let handle_clone = Arc::clone(&handle);
         let reader_clone = Arc::clone(&self.reader);
+        let state_clone = Arc::clone(&self.state);
 
         tokio::spawn(async move {
             // Call open handler
@@ -421,6 +470,7 @@ where
                 binary_message_handler_clone,
                 close_handler_clone,
                 reader_clone,
+                state_clone,
             )
             .await;
         });
@@ -612,6 +662,7 @@ where
         binary_message_handler: BinaryMessageHandler<T>,
         close_handler: CloseHandler,
         reader: Arc<Mutex<futures::stream::SplitStream<WebSocketStream<T>>>>,
+        state: Arc<Mutex<ConnState>>,
     ) {
         loop {
             let msg = {
@@ -626,8 +677,14 @@ where
                         h(TextMessageEvent::new(text.to_string()), Arc::clone(&handle)).await;
                     }
                 }
-                Some(Ok(Message::Ping(_))) => {}
-                Some(Ok(Message::Pong(_))) => {}
+                Some(Ok(Message::Ping(payload))) => {
+                    // Reply with Pong to keep the connection healthy.
+                    let mut w = handle.writer.lock().await;
+                    let _ = futures::SinkExt::send(&mut *w, Message::Pong(payload)).await;
+                }
+                Some(Ok(Message::Pong(_))) => {
+                    // Optional: update heartbeat/latency metrics here.
+                }
                 Some(Ok(Message::Binary(data))) => {
                     let handler = binary_message_handler.lock().await;
                     if let Some(ref h) = *handler {
@@ -645,10 +702,18 @@ where
                     if let Some(ref h) = *handler {
                         h(close_event).await;
                     }
+                    {
+                        let mut s = state.lock().await;
+                        *s = ConnState::CLOSED;
+                    }
                     break;
                 }
                 Some(Err(e)) => {
                     eprintln!("WebSocket error: {}", e);
+                    {
+                        let mut s = state.lock().await;
+                        *s = ConnState::CLOSED;
+                    }
                     break;
                 }
                 _ => {}
