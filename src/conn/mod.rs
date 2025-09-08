@@ -291,7 +291,7 @@ where
 
         Self {
             id,
-            state: Arc::new(Mutex::new(ConnState::CLOSED)),
+            state: Arc::new(Mutex::new(ConnState::Connecting)),
             reader: Arc::new(Mutex::new(reader)),
             writer: Arc::new(Mutex::new(writer)),
             addr,
