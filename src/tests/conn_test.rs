@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::conn::{Connection, ConnectionHandle};
+    use crate::conn::{Broadcaster, Connection, ConnectionHandle};
 
     use std::{
         io,
@@ -126,6 +126,9 @@ mod tests {
             id: 123,
             writer: Arc::new(Mutex::new(writer)),
             addr,
+            broadcast: Broadcaster {
+                clients: Arc::new(Mutex::new(Vec::new())),
+            },
         };
 
         assert_eq!(handle.id(), 123);
@@ -209,6 +212,9 @@ mod tests {
             id: 1,
             writer: Arc::new(Mutex::new(writer)),
             addr,
+            broadcast: Broadcaster {
+                clients: Arc::new(Mutex::new(Vec::new())),
+            },
         };
 
         // In a real test environment, you'd verify the message was actually sent
@@ -235,6 +241,9 @@ mod tests {
             id: 1,
             writer: Arc::new(Mutex::new(writer)),
             addr,
+            broadcast: Broadcaster {
+                clients: Arc::new(Mutex::new(Vec::new())),
+            },
         };
 
         let data = vec![1, 2, 3, 4, 5];
@@ -260,6 +269,9 @@ mod tests {
             id: 1,
             writer: Arc::new(Mutex::new(writer)),
             addr,
+            broadcast: Broadcaster {
+                clients: Arc::new(Mutex::new(Vec::new())),
+            },
         };
 
         let _result = handle.close().await;
@@ -283,6 +295,9 @@ mod tests {
             id: 1,
             writer: Arc::new(Mutex::new(writer)),
             addr,
+            broadcast: Broadcaster {
+                clients: Arc::new(Mutex::new(Vec::new())),
+            },
         });
 
         // Test concurrent sending from multiple tasks
@@ -358,6 +373,9 @@ mod tests {
             id: 1,
             writer: Arc::new(Mutex::new(writer)),
             addr,
+            broadcast: Broadcaster {
+                clients: Arc::new(Mutex::new(Vec::new())),
+            },
         };
 
         // Test sending to a potentially closed connection

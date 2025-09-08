@@ -64,8 +64,9 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 use tokio_tungstenite::accept_async;
 
-use crate::conn::{Connection, ConnectionHandle};
+use crate::conn::{Broadcaster, Connection, ConnectionHandle};
 use crate::types::WyndError;
+use std::fmt::Debug;
 
 /// Type alias for connection ID counter.
 ///
@@ -120,7 +121,7 @@ pub(crate) type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>
 /// ```
 pub struct Wynd<T>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
 {
     /// Handler for new connections.
     ///
@@ -170,7 +171,7 @@ pub type WithRipress = hyper::upgrade::Upgraded;
 
 impl<T> Drop for Wynd<T>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
 {
     /// Ensures proper cleanup when the server is dropped.
     ///
@@ -187,7 +188,7 @@ where
 
 impl<T> Wynd<T>
 where
-    T: AsyncRead + AsyncWrite + Send + 'static + Unpin,
+    T: AsyncRead + Debug + AsyncWrite + Send + 'static + Unpin,
 {
     /// Creates a new WebSocket server instance.
     ///
@@ -373,12 +374,20 @@ where
         // Get next connection ID
         let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
 
-        let connection = Connection::new(connection_id, websocket, addr);
+        let mut connection = Connection::new(connection_id, websocket, addr);
+
+        // Ensure the connection's broadcaster uses the global clients registry
+        connection.set_clients_registry(Arc::clone(&self.clients));
+
+        let broadcaster = Broadcaster {
+            clients: Arc::clone(&self.clients),
+        };
 
         let handle = Arc::new(ConnectionHandle {
             id: connection.id(),
             writer: Arc::clone(&connection.writer),
             addr: addr,
+            broadcast: broadcaster,
         });
 
         let arc_connection = Arc::new(connection);

@@ -154,7 +154,7 @@ type OpenHandler<T> =
 /// ```
 pub struct Connection<T>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
 {
     /// Unique identifier for this connection.
     ///
@@ -188,11 +188,13 @@ where
 
     /// State of the current connection.
     state: Arc<Mutex<ConnState>>,
+
+    clients: Arc<Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
 }
 
 impl<T> std::fmt::Debug for Connection<T>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: AsyncRead + AsyncWrite + Debug + Unpin + Send + 'static,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Connection")
@@ -264,9 +266,11 @@ pub enum ConnState {
 ///     });
 /// }
 /// ```
+
+#[derive(Debug)]
 pub struct ConnectionHandle<T>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Send + Debug + 'static,
 {
     /// Unique identifier for this connection.
     pub(crate) id: u64,
@@ -278,11 +282,46 @@ where
 
     /// The remote address of the connection.
     pub(crate) addr: SocketAddr,
+
+    /// Broadcaster that can send messages to all active clients.
+    pub broadcast: Broadcaster<T>,
+}
+
+/// A helper to broadcast messages to all connected clients.
+#[derive(Debug)]
+pub struct Broadcaster<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Debug + 'static,
+{
+    /// Shared registry of all active connections and their handles.
+    pub(crate) clients: Arc<Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
+}
+
+impl<T> Broadcaster<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
+{
+    /// Broadcast a UTF-8 text message to every connected client.
+    pub async fn text(&self, text: &str) {
+        for client in self.clients.lock().await.iter() {
+            if let Err(e) = client.1.send_text(text).await {
+                eprintln!("Failed to broadcast to client {}: {}", client.1.id(), e);
+            }
+        }
+    }
+    /// Broadcast a binary message to every connected client.
+    pub async fn binary(&self, bytes: &[u8]) {
+        for client in self.clients.lock().await.iter() {
+            if let Err(e) = client.1.send_binary(bytes.to_vec()).await {
+                eprintln!("Failed to broadcast to client {}: {}", client.1.id(), e);
+            }
+        }
+    }
 }
 
 impl<T> Connection<T>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
 {
     /// Creates a new WebSocket connection.
     ///
@@ -311,7 +350,19 @@ where
             text_message_handler: Arc::new(Mutex::new(None)),
             binary_message_handler: Arc::new(Mutex::new(None)),
             close_handler: Arc::new(Mutex::new(None)),
+            clients: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    /// Replace this connection's clients registry with the server-wide registry.
+    ///
+    /// This ensures that the `Broadcaster` created from this connection's handle
+    /// targets all active clients managed by the server, not a per-connection list.
+    pub(crate) fn set_clients_registry(
+        &mut self,
+        clients: Arc<Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
+    ) {
+        self.clients = clients;
     }
 
     /// Returns the unique identifier for this connection.
@@ -457,11 +508,16 @@ where
         > = self.open_handler.lock().await;
         *open_handler = Some(Box::new(move |handle| Box::pin(handler(handle))));
 
+        let broadcaster = Broadcaster {
+            clients: Arc::clone(&self.clients),
+        };
+
         // Create connection handle and start the connection lifecycle
         let handle = Arc::new(ConnectionHandle {
             id: self.id,
             writer: Arc::clone(&self.writer),
             addr: self.addr,
+            broadcast: broadcaster,
         });
 
         let open_handler_clone = Arc::clone(&self.open_handler);
@@ -742,7 +798,7 @@ where
 
 impl<T> ConnectionHandle<T>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
 {
     /// Returns the unique identifier for this connection.
     ///
