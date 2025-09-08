@@ -2,13 +2,14 @@
 
 ## [0.4.4] - 2025-09-04
 
-Added State to every connection
-Added client registery to Wynd Struct
-Now you can broadcast messages to all clients
-Now you can broadcast messages to client with specific id
+## [0.5.0] - 2025-09-08
+
+Added state to every connection
+Added client registry to Wynd struct
+Broadcast messages to all clients
+Broadcast messages to a client with a specific ID
 
 ## [0.4.4] - 2025-09-04
-
 Added contributing guide
 Added tests
 
