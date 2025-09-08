@@ -308,9 +308,11 @@ where
         }
     }
     /// Broadcast a binary message to every connected client.
-    pub async fn binary(&self, bytes: Vec<u8>) {
+    pub async fn binary(&self, bytes: &[u8]) {
         for client in self.clients.lock().await.iter() {
-            client.1.send_binary(bytes.clone()).await.unwrap();
+            if let Err(e) = client.1.send_binary(bytes.to_vec()).await {
+                eprintln!("Failed to broadcast to client {}: {}", client.1.id(), e);
+            }
         }
     }
 }
