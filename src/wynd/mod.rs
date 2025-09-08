@@ -49,8 +49,6 @@
 //! }
 //! ```
 
-#[cfg(feature = "with-ripress")]
-use futures::StreamExt;
 use futures::lock::Mutex;
 #[cfg(feature = "with-ripress")]
 use hyper_tungstenite::hyper;
@@ -479,6 +477,35 @@ impl Wynd<TcpStream> {
 
 #[cfg(feature = "with-ripress")]
 impl Wynd<WithRipress> {
+    /// Handler function to integrate wynd with ripress using `use_wynd` method.
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ripress::{app::App, types::RouterFns};
+    /// use wynd::wynd::{Wynd, WithRipress};
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd: Wynd<WithRipress> = Wynd::new();
+    ///     let mut app = App::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_text(|event, handle| async move {
+    ///             let _ = handle.send_text(&format!("Echo: {}", event.data)).await;
+    ///         });
+    ///     });
+    ///
+    ///     app.get("/", |_, res| async move { res.ok().text("Hello World!") });
+    ///     app.use_wynd("/ws", wynd.handler());
+    ///
+    ///     app.listen(3000, || {
+    ///         println!("Server running on http://localhost:3000");
+    ///         println!("WebSocket available at ws://localhost:3000/ws");
+    ///     })
+    ///     .await;
+    /// }
+    /// ```
+
     pub fn handler(
         self,
     ) -> impl Fn(
@@ -527,12 +554,12 @@ impl Wynd<WithRipress> {
                                     let connection =
                                         Connection::new(connection_id, ws_stream, wynd_clone.addr);
 
-                                    if let Err(e) = wynd_clone
-                                        .handle_websocket_connection(connection, connection_id)
-                                        .await
+                                    if let Err(e) =
+                                        wynd_clone.handle_websocket_connection(connection).await
                                     {
                                         eprintln!("Error handling WebSocket connection: {}", e);
-                                        if let Some(ref error_handler) = wynd_clone.error_handler {
+                                        if let Some(ref _error_handler) = wynd_clone.error_handler {
+                                            // TODO: FIX THIS
                                             // Convert error to string to avoid non-Send trait objects
                                             // Ensure WyndError is Send by using String
                                             // error_handler(WyndError::new(e.to_string())).await;
@@ -566,13 +593,12 @@ impl Wynd<WithRipress> {
     async fn handle_websocket_connection(
         &self,
         connection: Connection<WithRipress>,
-        connection_id: u64,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Start the connection lifecycle by invoking on_open immediately
         connection.on_open(|_handle| async move {}).await;
         // Allow user code to register handlers for this connection
         if let Some(ref handler) = self.connection_handler {
-            handler(connection).await;
+            handler(Arc::new(connection)).await;
         }
 
         Ok(())
