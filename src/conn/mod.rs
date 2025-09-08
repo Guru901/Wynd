@@ -200,6 +200,7 @@ where
 /// - `CLOSED`: The connection has been closed and cannot be used.
 /// - `CONNECTING`: The connection is in the process of being established.
 /// - `CLOSING`: The connection is in the process of closing.
+#[derive(Clone)]
 pub enum ConnState {
     /// The connection is open and active.
     OPEN,
@@ -357,6 +358,28 @@ where
     /// ```
     pub fn addr(&self) -> SocketAddr {
         self.addr
+    }
+
+    /// Returns the current state of the WebSocket connection.
+    ///
+    /// This method asynchronously acquires a lock on the internal state
+    /// and returns a clone of the current [`ConnState`]. The state can be
+    /// used to determine if the connection is open, closed, connecting, or closing.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let state = conn.state().await;
+    /// match state {
+    ///     ConnState::OPEN => println!("Connection is open"),
+    ///     ConnState::CLOSED => println!("Connection is closed"),
+    ///     ConnState::CONNECTING => println!("Connection is connecting"),
+    ///     ConnState::CLOSING => println!("Connection is closing"),
+    /// }
+    /// ```
+    pub async fn state(&self) -> ConnState {
+        let s = self.state.lock().await;
+        s.clone()
     }
 
     /// Registers a handler for connection open events.
