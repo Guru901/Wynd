@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0] - 2025-09-09
+
+Added `handle.broadcast.text` method
+
+Added `handle.broadcast.binary` method
+
+**Made broadcasting easier with the helpers**
+
 ## [0.5.0] - 2025-09-08
 
 Added state to every connection
