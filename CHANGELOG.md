@@ -1,7 +1,5 @@
 # Changelog
 
-## [0.4.4] - 2025-09-04
-
 ## [0.5.0] - 2025-09-08
 
 Added state to every connection
