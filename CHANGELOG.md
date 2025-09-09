@@ -1,6 +1,10 @@
 # Changelog
 
-## [0.5.0] - 2025-09-09
+## [0.6.1] - 2025-09-09
+
+Fixed broadcasting not working with ripress
+
+## [0.6.0] - 2025-09-09
 
 Added `handle.broadcast.text` method
 
