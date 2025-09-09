@@ -560,11 +560,49 @@ impl Wynd<WithRipress> {
                                         .next_connection_id
                                         .fetch_add(1, Ordering::Relaxed);
 
-                                    let connection =
+                                    let mut connection =
                                         Connection::new(connection_id, ws_stream, wynd_clone.addr);
 
-                                    if let Err(e) =
-                                        wynd_clone.handle_websocket_connection(connection).await
+                                    connection
+                                        .set_clients_registry(Arc::clone(&wynd_clone.clients));
+
+                                    let broadcaster = Broadcaster {
+                                        clients: Arc::clone(&wynd_clone.clients),
+                                    };
+
+                                    let handle = Arc::new(ConnectionHandle {
+                                        id: connection.id(),
+                                        writer: Arc::clone(&connection.writer),
+                                        addr: wynd_clone.addr,
+                                        broadcast: broadcaster,
+                                    });
+
+                                    let arc_connection = Arc::new(connection);
+
+                                    {
+                                        let mut clients = wynd_clone.clients.lock().await;
+                                        clients.push((
+                                            Arc::clone(&arc_connection),
+                                            Arc::clone(&handle),
+                                        ));
+                                    }
+
+                                    // Remove this connection from the registry when it closes
+                                    {
+                                        let clients_registry = Arc::clone(&wynd_clone.clients);
+                                        let handle_id = handle.id();
+                                        arc_connection.on_close(move |_event| {
+                                            let clients_registry = Arc::clone(&clients_registry);
+                                            async move {
+                                                let mut clients = clients_registry.lock().await;
+                                                clients.retain(|(_c, h)| h.id() != handle_id);
+                                            }
+                                        });
+                                    }
+
+                                    if let Err(e) = wynd_clone
+                                        .handle_websocket_connection(Arc::clone(&arc_connection))
+                                        .await
                                     {
                                         eprintln!("Error handling WebSocket connection: {}", e);
                                         if let Some(ref _error_handler) = wynd_clone.error_handler {
@@ -601,13 +639,13 @@ impl Wynd<WithRipress> {
     // Handle the WebSocket connection after successful upgrade
     async fn handle_websocket_connection(
         &self,
-        connection: Connection<WithRipress>,
+        connection: Arc<Connection<WithRipress>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Start the connection lifecycle by invoking on_open immediately
         connection.on_open(|_handle| async move {}).await;
         // Allow user code to register handlers for this connection
         if let Some(ref handler) = self.connection_handler {
-            handler(Arc::new(connection)).await;
+            handler(connection).await;
         }
 
         Ok(())
