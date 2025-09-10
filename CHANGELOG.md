@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.6.3] - 2025-09-10
+
+- Removed more things to reduce the bundle size
+
 ## [0.6.2] - 2025-09-10
 
 Removed tests and docs from the final release
