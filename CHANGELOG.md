@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.6.2] - 2025-09-10
+
+Removed tests and docs from the final release
+
 ## [0.6.1] - 2025-09-09
 
 Fixed broadcasting not working with ripress
