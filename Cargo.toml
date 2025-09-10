@@ -8,6 +8,7 @@ authors = ["You guru911u@gmail.com"]
 keywords = ["websocket", "server", "framework", "web"]
 categories = ["web-programming::websocket"]
 repository = "https://github.com/guru901/wynd"
+exclude = ["tests/*", "docs/*"]
 
 [dependencies]
 bytes = "1.10.1"
