@@ -187,7 +187,7 @@ where
     close_handler: CloseHandler,
 
     /// State of the current connection.
-    state: Arc<Mutex<ConnState>>,
+    pub(crate) state: Arc<Mutex<ConnState>>,
 
     clients: Arc<Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
 }
@@ -224,6 +224,17 @@ pub enum ConnState {
     CONNECTING,
     /// The connection is in the process of closing.
     CLOSING,
+}
+
+impl std::fmt::Display for ConnState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConnState::OPEN => write!(f, "OPEN"),
+            ConnState::CLOSED => write!(f, "CLOSED"),
+            ConnState::CONNECTING => write!(f, "CONNECTING"),
+            ConnState::CLOSING => write!(f, "CLOSING"),
+        }
+    }
 }
 
 /// Handle for interacting with a WebSocket connection.
@@ -285,6 +296,8 @@ where
 
     /// Broadcaster that can send messages to all active clients.
     pub broadcast: Broadcaster<T>,
+
+    pub(crate) state: Arc<Mutex<ConnState>>,
 }
 
 /// A helper to broadcast messages to all connected clients.
@@ -518,6 +531,7 @@ where
             writer: Arc::clone(&self.writer),
             addr: self.addr,
             broadcast: broadcaster,
+            state: Arc::clone(&self.state),
         });
 
         let open_handler_clone = Arc::clone(&self.open_handler);
@@ -531,6 +545,12 @@ where
         tokio::spawn(async move {
             // Call open handler
             {
+                // Transition shared state to OPEN as the connection is now ready
+                {
+                    let mut s = state_clone.lock().await;
+                    *s = ConnState::OPEN;
+                }
+
                 let open_handler = open_handler_clone.lock().await;
                 if let Some(ref handler) = *open_handler {
                     handler(Arc::clone(&handle_clone)).await;
@@ -860,6 +880,30 @@ where
         self.addr
     }
 
+    /// Returns the current state of the WebSocket handler.
+    ///
+    /// This method asynchronously acquires a lock on the internal state
+    /// and returns a clone of the current [`ConnState`]. The state can be
+    /// used to determine if the connection is open, closed, connecting, or closing.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// async fn test(handle: &ConnectionHandle<TcpStream>) {
+    ///     let state = handle.state().await;
+    ///     match state {
+    ///         ConnState::OPEN => println!("Connection is open"),
+    ///         ConnState::CLOSED => println!("Connection is closed"),
+    ///         ConnState::CONNECTING => println!("Connection is connecting"),
+    ///         ConnState::CLOSING => println!("Connection is closing"),
+    ///     }
+    /// }
+    /// ```
+    pub async fn state(&self) -> ConnState {
+        let s = self.state.lock().await;
+        s.clone()
+    }
+
     /// Sends a text message to the client.
     ///
     /// This method sends a UTF-8 text message to the WebSocket client.
@@ -987,6 +1031,11 @@ where
     /// }
     /// ```
     pub async fn close(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // Mark state as CLOSING to reflect graceful shutdown in progress
+        {
+            let mut s = self.state.lock().await;
+            *s = ConnState::CLOSING;
+        }
         let mut writer = self.writer.lock().await;
         futures::SinkExt::send(&mut *writer, Message::Close(None)).await?;
         Ok(())

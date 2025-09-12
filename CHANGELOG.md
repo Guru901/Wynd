@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.4] - 2025-09-10
+
+- Fixed state not being updated
+- Added state to handle as well
+
 ## [0.6.3] - 2025-09-10
 
 - Removed more things to reduce the bundle size

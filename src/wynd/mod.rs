@@ -388,6 +388,7 @@ where
             writer: Arc::clone(&connection.writer),
             addr: addr,
             broadcast: broadcaster,
+            state: Arc::clone(&connection.state),
         });
 
         let arc_connection = Arc::new(connection);
@@ -575,6 +576,7 @@ impl Wynd<WithRipress> {
                                         writer: Arc::clone(&connection.writer),
                                         addr: wynd_clone.addr,
                                         broadcast: broadcaster,
+                                        state: Arc::clone(&connection.state),
                                     });
 
                                     let arc_connection = Arc::new(connection);
