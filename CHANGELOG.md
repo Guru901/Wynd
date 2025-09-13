@@ -51,9 +51,8 @@
 
 ## [0.4.0] - 2025-09-03
 
-- Added feauture flag for ripress
+- Added feature flag for ripress
 - Added `wynd.handler()` for ripress
-
 ## [0.3.1] - 2025-08-28
 
 - Readme fixed

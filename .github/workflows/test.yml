@@ -32,11 +32,9 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Set up Bun
-        run: curl -fsSL https://bun.sh/install | bash
-
-      - name: Add Bun to PATH
-        run: echo "$HOME/.bun/bin" >> $GITHUB_PATH
-
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: '1.1.x'
       - name: Verify installations
         run: |
           rustc --version
