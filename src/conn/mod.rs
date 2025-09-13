@@ -306,6 +306,7 @@ pub struct Broadcaster<T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Debug + 'static,
 {
+    pub(crate) current_client_id: u64,
     /// Shared registry of all active connections and their handles.
     pub(crate) clients: Arc<Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
 }
@@ -317,16 +318,24 @@ where
     /// Broadcast a UTF-8 text message to every connected client.
     pub async fn text(&self, text: &str) {
         for client in self.clients.lock().await.iter() {
-            if let Err(e) = client.1.send_text(text).await {
-                eprintln!("Failed to broadcast to client {}: {}", client.1.id(), e);
+            if client.1.id == self.current_client_id {
+                continue;
+            } else {
+                if let Err(e) = client.1.send_text(text).await {
+                    eprintln!("Failed to broadcast to client {}: {}", client.1.id(), e);
+                }
             }
         }
     }
     /// Broadcast a binary message to every connected client.
     pub async fn binary(&self, bytes: &[u8]) {
         for client in self.clients.lock().await.iter() {
-            if let Err(e) = client.1.send_binary(bytes.to_vec()).await {
-                eprintln!("Failed to broadcast to client {}: {}", client.1.id(), e);
+            if client.1.id == self.current_client_id {
+                continue;
+            } else {
+                if let Err(e) = client.1.send_binary(bytes.to_vec()).await {
+                    eprintln!("Failed to broadcast to client {}: {}", client.1.id(), e);
+                }
             }
         }
     }
@@ -523,6 +532,7 @@ where
 
         let broadcaster = Broadcaster {
             clients: Arc::clone(&self.clients),
+            current_client_id: self.id,
         };
 
         // Create connection handle and start the connection lifecycle
@@ -888,7 +898,11 @@ where
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```rust
+    /// use wynd::conn::ConnState;
+    /// use tokio::net::TcpStream;
+    /// use wynd::conn::ConnectionHandle;
+    ///
     /// async fn test(handle: &ConnectionHandle<TcpStream>) {
     ///     let state = handle.state().await;
     ///     match state {

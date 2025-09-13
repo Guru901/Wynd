@@ -128,6 +128,7 @@ mod tests {
             addr,
             broadcast: Broadcaster {
                 clients: Arc::new(Mutex::new(Vec::new())),
+                current_client_id: 123,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
         };
@@ -215,6 +216,7 @@ mod tests {
             addr,
             broadcast: Broadcaster {
                 clients: Arc::new(Mutex::new(Vec::new())),
+                current_client_id: 123,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
         };
@@ -245,6 +247,7 @@ mod tests {
             addr,
             broadcast: Broadcaster {
                 clients: Arc::new(Mutex::new(Vec::new())),
+                current_client_id: 1,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
         };
@@ -274,6 +277,7 @@ mod tests {
             addr,
             broadcast: Broadcaster {
                 clients: Arc::new(Mutex::new(Vec::new())),
+                current_client_id: 1,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
         };
@@ -301,6 +305,7 @@ mod tests {
             addr,
             broadcast: Broadcaster {
                 clients: Arc::new(Mutex::new(Vec::new())),
+                current_client_id: 1,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
         });
@@ -380,6 +385,7 @@ mod tests {
             addr,
             broadcast: Broadcaster {
                 clients: Arc::new(Mutex::new(Vec::new())),
+                current_client_id: 1,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
         };
