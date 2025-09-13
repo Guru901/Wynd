@@ -1,6 +1,10 @@
 # Changelog
 
-## [0.6.4] - 2025-09-10
+## [0.6.5] - 2025-09-13
+
+- Fixed broadcasting sending msg to all clients
+
+## [0.6.4] - 2025-09-12
 
 - Fixed state not being updated
 - Added state to handle as well
@@ -53,6 +57,7 @@
 
 - Added feature flag for ripress
 - Added `wynd.handler()` for ripress
+
 ## [0.3.1] - 2025-08-28
 
 - Readme fixed
