@@ -30,3 +30,18 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Set up Bun
+        run: curl -fsSL https://bun.sh/install | bash
+
+      - name: Add Bun to PATH
+        run: echo "$HOME/.bun/bin" >> $GITHUB_PATH
+
+      - name: Verify installations
+        run: |
+          rustc --version
+          cargo --version
+          bun --version
+
+      - name: Run Test Script
+        run: chmod +x scripts/test.sh && scripts/test.sh
