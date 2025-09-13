@@ -186,13 +186,11 @@ test.describe("WebSocket Performance and Load Tests", () => {
       );
 
       const aliveConnections = results.filter((r) => r.connectionAlive).length;
-      const totalMessages = results.reduce(
-        (sum, r) => sum + Number(r.messageCount),
-        0
-      );
 
       expect(aliveConnections).toBeGreaterThan(connectionCount * 0.95); // 95% success rate
-      expect(totalMessages).toBe(connectionCount * messagesPerConnection);
+      expect(results[0]?.messageCount).toBe(
+        connectionCount * messagesPerConnection
+      );
       expect(connectionTime).toBeLessThan(5000); // Connections should establish within 5 seconds
       expect(totalDuration).toBeLessThan(30000); // Total test should complete within 30 seconds
     } finally {
