@@ -330,12 +330,18 @@ where
     /// Broadcast a binary message to every connected client.
     pub async fn binary(&self, bytes: &[u8]) {
         for client in self.clients.lock().await.iter() {
-            if client.1.id == self.current_client_id {
-                continue;
-            } else {
-                if let Err(e) = client.1.send_binary(bytes.to_vec()).await {
-                    eprintln!("Failed to broadcast to client {}: {}", client.1.id(), e);
-                }
+    pub async fn binary(&self, bytes: &[u8]) {
+        let payload = bytes.to_vec();
+        let recipients: Vec<Arc<ConnectionHandle<T>>> = {
+            let clients = self.clients.lock().await;
+            clients
+                .iter()
+                .filter_map(|(_, h)| (h.id() != self.current_client_id).then(|| Arc::clone(h)))
+                .collect()
+        };
+        for h in recipients {
+            if let Err(e) = h.send_binary(payload.clone()).await {
+                eprintln!("Failed to broadcast to client {}: {}", h.id(), e);
             }
         }
     }
