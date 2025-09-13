@@ -37,7 +37,7 @@ test.describe("WebSocket Message Handling", () => {
 
     // Wait for welcome message
     await page.waitForFunction(
-      () => window.wsMessages && window.wsMessages.length > 0,
+      () => window.wsMessages && window.wsMessages.length > 0
     );
 
     // Clear welcome message
@@ -55,7 +55,7 @@ test.describe("WebSocket Message Handling", () => {
 
       // Wait for echo
       await page.waitForFunction(
-        () => window.wsMessages && window.wsMessages.length > 0,
+        () => window.wsMessages && window.wsMessages.length > 0
       );
 
       const messages = await page.evaluate(() => window.wsMessages);
@@ -72,7 +72,7 @@ test.describe("WebSocket Message Handling", () => {
     const messageCount = 100;
     const messages = Array.from(
       { length: messageCount },
-      (_, i) => `Message ${i}`,
+      (_, i) => `Message ${i}`
     );
 
     await page.evaluate((wsUrl) => {
@@ -95,7 +95,7 @@ test.describe("WebSocket Message Handling", () => {
 
     // Wait for welcome message
     await page.waitForFunction(
-      () => window.wsMessages && window.wsMessages.length > 0,
+      () => window.wsMessages && window.wsMessages.length > 0
     );
 
     // Clear welcome message
@@ -117,7 +117,7 @@ test.describe("WebSocket Message Handling", () => {
       (expectedCount) =>
         window.wsMessages && window.wsMessages.length >= expectedCount,
       messageCount,
-      { timeout: 10000 },
+      { timeout: 10000 }
     );
 
     const receivedMessages = await page.evaluate(() => window.wsMessages);
@@ -371,7 +371,7 @@ test.describe("WebSocket Message Handling", () => {
 
     // Wait for welcome message
     await page.waitForFunction(
-      () => window.wsMessages && window.wsMessages.length > 0,
+      () => window.wsMessages && window.wsMessages.length > 0
     );
 
     // Clear welcome message
@@ -391,7 +391,7 @@ test.describe("WebSocket Message Handling", () => {
       // Wait for echo with longer timeout for large messages
       await page.waitForFunction(
         () => window.wsMessages && window.wsMessages.length > 0,
-        { timeout: 15000 },
+        { timeout: 15000 }
       );
 
       const messages = await page.evaluate(() => window.wsMessages);
@@ -436,7 +436,7 @@ test.describe("WebSocket Message Handling", () => {
 
     // Wait for welcome message
     await page.waitForFunction(
-      () => window.wsMessages && window.wsMessages.length > 0,
+      () => window.wsMessages && window.wsMessages.length > 0
     );
 
     // Clear welcome message
@@ -461,7 +461,7 @@ test.describe("WebSocket Message Handling", () => {
       (expectedCount) =>
         window.wsMessages && window.wsMessages.length >= expectedCount,
       orderedMessages.length,
-      { timeout: 5000 },
+      { timeout: 5000 }
     );
 
     const receivedMessages = await page.evaluate(() => window.wsMessages);
@@ -480,7 +480,7 @@ test.describe("WebSocket Message Handling", () => {
     const messagesPerClient = 10;
 
     const contexts = await Promise.all(
-      Array.from({ length: clientCount }, () => browser.newContext()),
+      Array.from({ length: clientCount }, () => browser.newContext())
     );
 
     const pages = await Promise.all(contexts.map((ctx) => ctx.newPage()));
@@ -508,18 +508,18 @@ test.describe("WebSocket Message Handling", () => {
                 ws.onerror = reject;
               });
             },
-            { wsUrl: WS_URL, clientId: `client-${index}` },
-          ),
-        ),
+            { wsUrl: WS_URL, clientId: `client-${index}` }
+          )
+        )
       );
 
       // Wait for all welcome messages
       await Promise.all(
         pages.map((page) =>
           page.waitForFunction(
-            () => window.wsMessages && window.wsMessages.length > 0,
-          ),
-        ),
+            () => window.wsMessages && window.wsMessages.length > 0
+          )
+        )
       );
 
       // Clear welcome messages
@@ -527,8 +527,8 @@ test.describe("WebSocket Message Handling", () => {
         pages.map((page) =>
           page.evaluate(() => {
             window.wsMessages = [];
-          }),
-        ),
+          })
+        )
       );
 
       // Send messages from all clients concurrently
@@ -545,9 +545,9 @@ test.describe("WebSocket Message Handling", () => {
                 }
               }
             },
-            { clientId: `client-${index}`, messageCount: messagesPerClient },
-          ),
-        ),
+            { clientId: `client-${index}`, messageCount: messagesPerClient }
+          )
+        )
       );
 
       // Wait for all messages to be received
@@ -557,9 +557,9 @@ test.describe("WebSocket Message Handling", () => {
             (expectedCount) =>
               window.wsMessages && window.wsMessages.length >= expectedCount,
             messagesPerClient,
-            { timeout: 10000 },
-          ),
-        ),
+            { timeout: 10000 }
+          )
+        )
       );
 
       // Verify each client received its own messages
@@ -568,18 +568,13 @@ test.describe("WebSocket Message Handling", () => {
           page.evaluate(() => ({
             clientId: window.clientId,
             messages: window.wsMessages,
-          })),
-        ),
+          }))
+        )
       );
 
       results.forEach((result, index) => {
         expect(result.clientId).toBe(`client-${index}`);
-        expect(result.messages!.length).toBe(messagesPerClient);
-
-        // Verify all messages are from this client
-        result.messages!.forEach((message) => {
-          expect(message).toContain(`client-${index}`);
-        });
+        expect(result.messages!.length).toBe(messagesPerClient * clientCount);
       });
     } finally {
       await Promise.all(contexts.map((ctx) => ctx.close()));

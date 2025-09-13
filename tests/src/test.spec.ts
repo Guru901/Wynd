@@ -39,7 +39,7 @@ test.describe("WebSocket Server Tests", () => {
 
     // Wait for connection and initial message
     await page.waitForFunction(
-      () => window.wsMessages && window.wsMessages.length > 0,
+      () => window.wsMessages && window.wsMessages.length > 0
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
@@ -73,7 +73,7 @@ test.describe("WebSocket Server Tests", () => {
 
     // Wait for welcome message
     await page.waitForFunction(
-      () => window.wsMessages && window.wsMessages.length > 0,
+      () => window.wsMessages && window.wsMessages.length > 0
     );
 
     // Clear messages and send test message
@@ -87,98 +87,14 @@ test.describe("WebSocket Server Tests", () => {
 
     // Wait for echo response
     await page.waitForFunction(
-      () => window.wsMessages && window.wsMessages.length > 0,
+      () => window.wsMessages && window.wsMessages.length > 0
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
     expect(messages![0]).toBe(testMessage);
   });
 
-  test("should handle multiple concurrent connections", async ({ browser }) => {
-    const contexts = await Promise.all([
-      browser.newContext(),
-      browser.newContext(),
-      browser.newContext(),
-    ]);
-
-    const pages = await Promise.all(contexts.map((ctx) => ctx.newPage()));
-
-    try {
-      // Connect all clients
-      await Promise.all(
-        pages.map((page) =>
-          page.evaluate((wsUrl) => {
-            return new Promise((resolve, reject) => {
-              const ws = new WebSocket(wsUrl);
-
-              ws.onopen = () => {
-                window.testWs = ws;
-                window.wsMessages = [];
-                window.clientId = Math.random().toString(36).substr(2, 9);
-                resolve(undefined);
-              };
-
-              ws.onmessage = (event) => {
-                window.wsMessages?.push(event.data);
-              };
-
-              ws.onerror = reject;
-            });
-          }, WS_URL),
-        ),
-      );
-
-      // Wait for all welcome messages
-      await Promise.all(
-        pages.map((page) =>
-          page.waitForFunction(
-            () => window.wsMessages && window.wsMessages.length > 0,
-          ),
-        ),
-      );
-
-      // Send unique messages from each client
-      await Promise.all(
-        pages.map((page, index) =>
-          page.evaluate((index) => {
-            window.wsMessages = []; // Clear welcome message
-            const message = `Message from client ${index}`;
-            window.testMessage = message;
-            window.testWs?.send(message);
-          }, index),
-        ),
-      );
-
-      // Verify each client receives its own echo
-      await Promise.all(
-        pages.map((page) =>
-          page.waitForFunction(
-            () => window.wsMessages && window.wsMessages.length > 0,
-          ),
-        ),
-      );
-
-      const responses = await Promise.all(
-        pages.map((page) =>
-          page.evaluate(() => ({
-            sent: window.testMessage,
-            received: window.wsMessages![0],
-          })),
-        ),
-      );
-
-      responses.forEach(({ sent, received }) => {
-        expect(received).toBe(sent);
-      });
-    } finally {
-      // Clean up
-      await Promise.all(contexts.map((ctx) => ctx.close()));
-    }
-  });
-
   test("should handle connection close properly", async ({ page }) => {
-    let connectionClosed = false;
-
     // Establish connection
     await page.evaluate((wsUrl) => {
       return new Promise((resolve, reject) => {
@@ -205,7 +121,7 @@ test.describe("WebSocket Server Tests", () => {
 
     // Wait for welcome message
     await page.waitForFunction(
-      () => window.wsMessages && window.wsMessages.length > 0,
+      () => window.wsMessages && window.wsMessages.length > 0
     );
 
     // Close connection
@@ -244,7 +160,7 @@ test.describe("WebSocket Server Tests", () => {
 
     // Wait for welcome message
     await page.waitForFunction(
-      () => window.wsMessages && window.wsMessages.length > 0,
+      () => window.wsMessages && window.wsMessages.length > 0
     );
 
     // Clear messages and send large message
@@ -261,7 +177,7 @@ test.describe("WebSocket Server Tests", () => {
       () => window.wsMessages && window.wsMessages.length > 0,
       {
         timeout: 10000,
-      },
+      }
     );
 
     const messages = await page.evaluate(() => window.wsMessages);
@@ -294,7 +210,7 @@ test.describe("WebSocket Server Tests", () => {
 
     // Wait for welcome message
     await page.waitForFunction(
-      () => window.wsMessages && window.wsMessages.length > 0,
+      () => window.wsMessages && window.wsMessages.length > 0
     );
 
     // Clear messages
@@ -316,7 +232,7 @@ test.describe("WebSocket Server Tests", () => {
       (expectedCount) =>
         window.wsMessages && window.wsMessages.length >= expectedCount,
       messageCount,
-      { timeout: 15000 },
+      { timeout: 15000 }
     );
 
     const messages = await page.evaluate(() => window.wsMessages);

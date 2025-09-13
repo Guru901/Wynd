@@ -381,6 +381,7 @@ where
 
         let broadcaster = Broadcaster {
             clients: Arc::clone(&self.clients),
+            current_client_id: connection_id,
         };
 
         let handle = Arc::new(ConnectionHandle {
@@ -569,6 +570,7 @@ impl Wynd<WithRipress> {
 
                                     let broadcaster = Broadcaster {
                                         clients: Arc::clone(&wynd_clone.clients),
+                                        current_client_id: connection_id,
                                     };
 
                                     let handle = Arc::new(ConnectionHandle {

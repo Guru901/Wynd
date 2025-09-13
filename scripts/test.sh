@@ -24,10 +24,12 @@ async fn main() {
         .await;
 
         conn.on_text(|event, handle| async move {
+            handle.send_text(&event.data).await.unwrap();
             handle.broadcast.text(&event.data).await;
         });
 
         conn.on_binary(|event, handle| async move {
+            println!("Received binary data: {} bytes", event.data.len());
             handle.send_binary(event.data.to_vec()).await.unwrap();
         });
     });
