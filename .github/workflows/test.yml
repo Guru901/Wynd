@@ -44,4 +44,4 @@ jobs:
           bun --version
 
       - name: Run Test Script
-        run: chmod +x scripts/test.sh && scripts/test.sh
+        run: cd tests/ && bunx playwright install && cd .. && chmod +x scripts/test.sh && scripts/test.sh
