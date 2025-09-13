@@ -2,7 +2,7 @@
 
 import { expect } from "@playwright/test";
 
-export const WS_URL = "ws://localhost:3000/ws";
+export const WS_URL = "ws://localhost:3000";
 export const HTTP_URL = "http://localhost:3000";
 
 // Test configuration
