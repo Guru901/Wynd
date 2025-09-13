@@ -329,8 +329,6 @@ where
     }
     /// Broadcast a binary message to every connected client.
     pub async fn binary(&self, bytes: &[u8]) {
-        for client in self.clients.lock().await.iter() {
-    pub async fn binary(&self, bytes: &[u8]) {
         let payload = bytes.to_vec();
         let recipients: Vec<Arc<ConnectionHandle<T>>> = {
             let clients = self.clients.lock().await;
