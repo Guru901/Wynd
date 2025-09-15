@@ -16,14 +16,24 @@ A simple, fast, and developer-friendly WebSocket library for Rust.
 - **📡 Real-time Ready**: Perfect for chat apps, games, and live dashboards
 - **🌐 HTTP Integration**: Optional ripress integration for combined HTTP + WebSocket servers
 
-## Quick Start
+## Getting Started
 
-Add Wynd to your `Cargo.toml`:
+The easiest way to get started is with the HexStack CLI.
 
-```toml
-[dependencies]
-wynd = "*"
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+HexStack is a project scaffolding tool (similar to create-t3-app) that lets you spin up new Rust web projects in seconds. With just a few selections, you can choose:
+
+Backend: Wynd, Ripress, or both
+
+Frontend: React, Svelte, or none
+
+Extras: Out-of-the-box WebSocket + HTTP support
+
+This means you can quickly bootstrap a real-time full-stack project (Rust backend + modern frontend) or just a backend-only Wynd project.
+
+To create a new project with Wynd:
+
+```sh
+hexstack new my-project --template wynd
 ```
 
 Create a simple echo server:
