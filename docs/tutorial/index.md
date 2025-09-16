@@ -4,7 +4,7 @@ This tutorial will guide you through building a complete WebSocket chat server u
 
 ## Prerequisites
 
-- Rust toolchain (stable) with edition 2021 or later
+- Rust toolchain (stable), edition 2024
 - Basic understanding of Rust async/await
 - A WebSocket client for testing (we'll use `wscat`)
 
@@ -90,7 +90,8 @@ Now let's track all connected clients so we can broadcast messages:
 
 ```rust
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use wynd::wynd::{Wynd, Standalone};
 
 #[tokio::main]
@@ -107,7 +108,7 @@ async fn main() {
 
             // Add client to our tracking
             {
-                let mut clients = clients.lock().unwrap();
+                let mut clients = clients.lock().await;
                 clients.insert(id, Arc::clone(&handle));
             }
 
@@ -144,7 +145,6 @@ async fn broadcast_message(
     message: &str,
     sender_id: u64,
 ) {
-    // 1) Snapshot under lock
     let handles: Vec<Arc<wynd::conn::ConnectionHandle>> = {
         let guard = clients.lock().await;
         guard
@@ -152,7 +152,6 @@ async fn broadcast_message(
             .filter_map(|(id, h)| (*id != sender_id).then(|| Arc::clone(h)))
             .collect()
     };
-    // 2) Send without holding the lock
     for handle in handles {
         let _ = handle.send_text(message).await;
     }
@@ -173,7 +172,8 @@ Let's add user names to make the chat more personal:
 ```rust
 use wynd::wynd::{Wynd, Standalone};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Clone)]
 struct ChatUser {
@@ -210,7 +210,7 @@ async fn main() {
                     };
 
                     {
-                        let mut users = users.lock().unwrap();
+                        let mut users = users.lock().await;
                         users.insert(id, user.clone());
                     }
 
@@ -224,7 +224,7 @@ async fn main() {
                 }
             } else {
                 // Regular message
-                let users = users.lock().unwrap();
+                let users = users.lock().await;
                 if let Some(user) = users.get(&id) {
                     let message = format!("{}: {}", user.name, text);
                     println!("{}", message);
@@ -235,12 +235,8 @@ async fn main() {
             }
         });
 
-        conn.on_close(|event| async move {
-            let users = users.lock().unwrap();
-            if let Some(user) = users.get(&event.code) {
-                println!("{} left the chat", user.name);
-                broadcast_message(&users, &format!("{} left the chat", user.name), event.code).await;
-            }
+        conn.on_close(|_event| async move {
+            // Cleanup would go here (see later steps)
         });
     });
 
@@ -279,7 +275,8 @@ Let's add more useful commands:
 ```rust
 use wynd::wynd::{Wynd, Standalone};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Clone)]
 struct ChatUser {
@@ -329,7 +326,7 @@ Welcome to the chat! Available commands:
                                 };
 
                                 {
-                                    let mut users = users.lock().unwrap();
+                                    let mut users = users.lock().await;
                                     users.insert(id, user.clone());
                                 }
 
@@ -345,7 +342,7 @@ Welcome to the chat! Available commands:
                         }
                     }
                     "/users" => {
-                        let users = users.lock().unwrap();
+                        let users = users.lock().await;
                         let user_list: Vec<String> = users.values().map(|u| u.name.clone()).collect();
                         let message = format!("Online users: {}", user_list.join(", "));
                         let _ = handle.send_text(&message).await;
@@ -382,11 +379,7 @@ Available commands:
         });
 
         conn.on_close(|event| async move {
-            let mut users = users.lock().unwrap();
-            if let Some(user) = users.remove(&event.code) {
-                println!("{} left the chat", user.name);
-                broadcast_message(&users, &format!("{} left the chat", user.name), event.code).await;
-            }
+            // Cleanup handled in Step 7 with connection id
         });
     });
 
@@ -402,7 +395,7 @@ async fn broadcast_message(
     message: &str,
     sender_id: u64,
 ) {
-    let users = users.lock().unwrap();
+    let users = users.lock().await;
     for (id, user) in users.iter() {
         if *id != sender_id {
             let _ = user.handle.send_text(message).await;
@@ -608,7 +601,7 @@ async fn broadcast_message(
 
 ## Step 7: Adding HTTP Integration (Optional)
 
-If you want to serve both HTTP requests and WebSocket connections, you can use the `with-ripress` feature to integrate with ripress HTTP server:
+If you want to serve both HTTP requests and WebSocket connections, enable the `with-ripress` feature to integrate with ripress HTTP server:
 
 ```bash
 cargo add wynd --features with-ripress
@@ -676,7 +669,6 @@ Welcome to the chat! Available commands:
                                 };
 
                                 {
-                                {
                                     let mut users = users.lock().await;
                                     users.insert(id, user.clone());
                                 }
@@ -698,7 +690,7 @@ Welcome to the chat! Available commands:
                         }
                     }
                     "/users" => {
-                        let users = users.lock().unwrap();
+                        let users = users.lock().await;
                         let user_list: Vec<String> = users.values().map(|u| u.name.clone()).collect();
                         let message = format!("Online users: {}", user_list.join(", "));
 
@@ -735,8 +727,6 @@ Available commands:
                     }
                 }
             } else {
-                // Regular message
-                let users = users.lock().unwrap();
                 // Regular message
                 let users = users.lock().await;
                 if let Some(user) = users.get(&id) {
@@ -860,7 +850,6 @@ Available commands:
     .await;
 }
 
-async fn broadcast_message(
 async fn broadcast_message(
     users: &Arc<Mutex<HashMap<u64, ChatUser>>>,
     message: &str,

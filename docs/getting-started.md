@@ -128,7 +128,7 @@ This setup allows you to:
 
 - Serve HTTP requests at `http://localhost:3000/`
 - Serve WebSocket connections at `ws://localhost:3000/ws`
-- Use ripress's routing, middleware, and other HTTP features
+- Use ripress for routing, middleware, and other HTTP features
 - Handle both protocols on the same port
 
 ## What's Happening

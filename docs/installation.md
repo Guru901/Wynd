@@ -8,8 +8,8 @@ Wynd is a lightweight, async WebSocket server library built on Tokio + Tungsteni
 
 ## Requirements
 
-- Rust toolchain (stable) with edition 2024
-- Minimum Supported Rust Version (MSRV): 1.78+ (compatible with Tokio 1.x)
+- Rust toolchain (stable), edition 2024
+- Minimum Supported Rust Version (MSRV): 1.78+
 
 ## Add the dependency
 
@@ -19,34 +19,27 @@ Using Cargo:
 cargo add wynd
 ```
 
-Or manually in `Cargo.toml`:
-
-```toml
-[dependencies]
-wynd = "*"
-```
-
 ## Feature flags
 
 Wynd supports the following optional features:
 
 ### `with-ripress`
 
-Enable integration with the [ripress](https://crates.io/crates/ripress) HTTP server crate to run WebSocket and HTTP servers together on the same port.
+Enable integration with the ripress HTTP server crate to run WebSocket and HTTP servers together on the same port.
 
 ```toml
 [dependencies]
-wynd = { version = "*", features = ["with-ripress"] }
-ripress = "1.8"
+wynd = { version = "0.6", features = ["with-ripress"] }
+ripress = { version = "*", features = ["with-wynd"] }
 ```
 
 This feature allows you to:
 
 - Serve WebSocket connections and HTTP requests on the same port
-- Use ripress's routing and middleware capabilities
+- Use ripress for routing and middleware
 - Integrate WebSocket functionality into existing HTTP applications
 
-See the [Getting Started](../getting-started/) guide for examples of using Wynd with ripress.
+See the Getting Started guide for examples of using Wynd with ripress.
 
 ## Verify installation
 

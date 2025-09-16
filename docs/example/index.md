@@ -52,32 +52,24 @@ npm install -g wscat
 wscat -c ws://localhost:8080
 
 # Send messages
-{"type": "text", "data": "Hello, server!"}
+Hello, server!
 ```
 
-### Using curl (for testing)
-
-```bash
-# Test WebSocket connection (basic)
-curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==" http://localhost:8080/
-```
-
-### Using a Web Browser
+### Browser snippet
 
 ```javascript
-// In browser console
 const ws = new WebSocket("ws://localhost:8080");
 
-ws.onopen = function () {
+ws.onopen = () => {
   console.log("Connected to server");
   ws.send("Hello, server!");
 };
 
-ws.onmessage = function (event) {
+ws.onmessage = (event) => {
   console.log("Received:", event.data);
 };
 
-ws.onclose = function (event) {
+ws.onclose = (event) => {
   console.log("Disconnected:", event.code, event.reason);
 };
 ```
