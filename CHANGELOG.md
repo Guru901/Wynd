@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.6.7] - 2025-09-17
+
+- Rewritten all the docs
+
 ## [0.6.6] - 2025-09-15
 
 - Improved reamde
