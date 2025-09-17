@@ -330,9 +330,13 @@ where
 
     /// Broadcast a UTF-8 text message to every connected client.
     pub async fn emit_text(&self, text: &str) {
-        for client in self.clients.lock().await.iter() {
-            if let Err(e) = client.1.send_text(text).await {
-                eprintln!("Failed to broadcast to client {}: {}", client.1.id(), e);
+        let recipients: Vec<Arc<ConnectionHandle<T>>> = {
+            let clients = self.clients.lock().await;
+            clients.iter().map(|(_, h)| Arc::clone(h)).collect()
+        };
+        for h in recipients {
+            if let Err(e) = h.send_text(text).await {
+                eprintln!("Failed to broadcast to client {}: {}", h.id(), e);
             }
         }
     }
