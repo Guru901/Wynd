@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.7.0] - 2025-09-18
+
+- Added `broadcast.emit_text` and `broadcast.emit_binary` functions that broadcast to all clients (also the current one)
+
 ## [0.6.7] - 2025-09-17
 
 - Rewritten all the docs
