@@ -315,7 +315,7 @@ impl<T> Broadcaster<T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
 {
-    /// Broadcast a UTF-8 text message to every connected client.
+    /// Broadcast a UTF-8 text message to every connected client except the current one.
     pub async fn text(&self, text: &str) {
         for client in self.clients.lock().await.iter() {
             if client.1.id == self.current_client_id {
@@ -327,7 +327,26 @@ where
             }
         }
     }
+
+    /// Broadcast a UTF-8 text message to every connected client.
+    pub async fn emit_text(&self, text: &str) {
+        for client in self.clients.lock().await.iter() {
+            if let Err(e) = client.1.send_text(text).await {
+                eprintln!("Failed to broadcast to client {}: {}", client.1.id(), e);
+            }
+        }
+    }
+
     /// Broadcast a binary message to every connected client.
+    pub async fn emit_binary(&self, bytes: &[u8]) {
+        for client in self.clients.lock().await.iter() {
+            if let Err(e) = client.1.send_binary(bytes.to_vec()).await {
+                eprintln!("Failed to broadcast to client {}: {}", client.1.id(), e);
+            }
+        }
+    }
+
+    /// Broadcast a binary message to every connected client except the current one.
     pub async fn binary(&self, bytes: &[u8]) {
         let payload = bytes.to_vec();
         let recipients: Vec<Arc<ConnectionHandle<T>>> = {
