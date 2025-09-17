@@ -61,7 +61,7 @@ async fn main() {
 
 ## HTTP + WebSocket Integration
 
-Use the `with-ripress` feature to serve both HTTP and WebSocket on the same port:
+Enable the `with-ripress` feature to serve both HTTP and WebSocket on the same port:
 
 ```rust
 use ripress::{app::App, types::RouterFns};
@@ -91,11 +91,11 @@ async fn main() {
 
 ## Documentation
 
-- **[Getting Started](docs/getting-started.md)** - Quick setup and first steps
-- **[API Reference](docs/api-reference/)** - Complete API documentation
-- **[Examples](docs/example/)** - Practical examples and use cases
-- **[Tutorial](docs/tutorial/)** - Step-by-step guide to building a chat server
-- **[Guides](docs/guides/)** - Best practices and advanced patterns
+- **Getting Started**: `docs/getting-started.md`
+- **API Reference**: `docs/api-reference/`
+- **Examples**: `docs/example/`
+- **Tutorial**: `docs/tutorial/`
+- **Guides**: `docs/guides/`
 
 ## Performance
 

@@ -90,7 +90,6 @@ async fn broadcast_message(
     message: &str,
     sender_id: u64,
 ) {
-    // Collect handles to send to, avoiding holding the lock across await
     let targets: Vec<Arc<wynd::conn::ConnectionHandle>> = {
         let clients = clients.lock().await;
         clients
@@ -100,7 +99,6 @@ async fn broadcast_message(
             .collect()
     };
 
-    // Send messages without holding the lock
     for handle in targets {
         let _ = handle.send_text(message).await;
     }
@@ -438,7 +436,6 @@ async fn efficient_broadcast(
     message: &str,
     exclude_id: Option<u64>,
 ) {
-    // Collect handles to send to, avoiding holding the lock across await
     let targets: Vec<_> = {
         let clients = clients.lock().await;
         clients
@@ -448,17 +445,15 @@ async fn efficient_broadcast(
             .collect()
     };
 
-    // Send to all targets concurrently
     let futures: Vec<_> = targets
-        .iter()
-        .map(|handle| handle.send_text(message))
+        .into_iter()
+        .map(|handle| async move {
+            let _ = handle.send_text(message).await;
+        })
         .collect();
 
-    // Wait for all sends to complete
-    for future in futures {
-        if let Err(e) = future.await {
-            eprintln!("Failed to send message: {}", e);
-        }
+    for fut in futures {
+        fut.await;
     }
 }
 ```

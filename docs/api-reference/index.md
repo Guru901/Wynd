@@ -1,21 +1,28 @@
 # API Reference
 
-This section provides a comprehensive overview of the Wynd API. For full Rustdoc with examples, run `cargo doc --open`.
+This section provides a concise overview of the public API. For full Rustdoc with examples, run:
+
+```bash
+cargo doc --open
+```
 
 ## Core Types
 
-### `wynd::Wynd`
+### `wynd::wynd::Wynd<T>`
 
-The main WebSocket server type that manages connections and server lifecycle.
+The main WebSocket server type that manages connections and server lifecycle. The `T` parameter selects the transport:
+
+- `Standalone` = `tokio::net::TcpStream`
+- `WithRipress` = `hyper::upgrade::Upgraded` (requires `with-ripress` feature)
 
 #### Methods
 
-- `Wynd::new() -> Wynd` - Creates a new WebSocket server instance
-- `on_connection(fn(Connection) -> Future)` - Registers a handler for new connections
-- `on_error(fn(WyndError) -> Future)` - Registers a handler for server-level errors
-- `on_close(fn() -> ())` - Registers a handler for server shutdown
-- `listen(port: u16, on_listening: impl FnOnce()) -> Result<(), Error>` - Starts the server
-- `handler() -> WyndHandler` - Returns a handler for integration with ripress (requires `with-ripress` feature)
+- `Wynd::new() -> Wynd<T>` — Create a new server instance
+- `on_connection(fn(Arc<Connection<T>>) -> impl Future<Output = ()> + Send + 'static)` — Register connection handler
+- `on_error(fn(WyndError) -> impl Future<Output = ()> + Send + 'static)` — Register server-level error handler
+- `on_close(fn() + Send + Sync + 'static)` — Register shutdown handler
+- `listen(self, port: u16, on_listening: impl FnOnce() + Send + 'static) -> impl Future<Output = Result<(), Box<dyn Error>>>` — Start server (Standalone only)
+- `handler(self) -> impl Fn(Request<Body>) -> Future<Output = Response<Body>>` — ripress integration (WithRipress only)
 
 #### Example
 
@@ -40,13 +47,13 @@ wynd.listen(8080, || {
 
 #### Integration with ripress
 
-When using the `with-ripress` feature, you can integrate Wynd with ripress HTTP server:
+When using the `with-ripress` feature, integrate Wynd with ripress HTTP server:
 
 ```rust
 use ripress::{app::App, types::RouterFns};
-use wynd::wynd::{Wynd, Standalone};
+use wynd::wynd::{Wynd, WithRipress, Wynd};
 
-let mut wynd: Wynd<Standalone> = Wynd::new();
+let mut wynd: Wynd<WithRipress> = Wynd::new();
 let mut app = App::new();
 
 wynd.on_connection(|conn| async move {
@@ -54,7 +61,7 @@ wynd.on_connection(|conn| async move {
 });
 
 app.get("/", |_, res| async move { res.ok().text("Hello World!") });
-app.use_wynd("/ws", wynd.handler()); // Mount WebSocket at /ws path
+app.use_wynd("/ws", wynd.handler());
 
 app.listen(3000, || {
     println!("Server running on http://localhost:3000");
@@ -63,13 +70,13 @@ app.listen(3000, || {
 .await;
 ```
 
-### `conn::Connection`
+### `conn::Connection<T>`
 
 Represents an individual WebSocket connection with event handlers.
 
 #### Methods
 
-- `id() -> &u64` - Returns the unique connection ID
+- `id() -> u64` - Returns the unique connection ID
 - `addr() -> SocketAddr` - Returns the remote address
 - `on_open(fn(ConnectionHandle) -> Future)` - Registers open event handler
 - `on_text(fn(TextMessageEvent, ConnectionHandle) -> Future)` - Registers text message handler
@@ -100,7 +107,7 @@ conn.on_close(|event| async move {
 });
 ```
 
-### `conn::ConnectionHandle`
+### `conn::ConnectionHandle<T>`
 
 Provides methods to interact with a WebSocket connection.
 
@@ -242,6 +249,20 @@ All Wynd types are designed to be thread-safe:
 - `ConnectionHandle` can be safely shared between threads
 - Event handlers can be moved between threads
 - The server can handle multiple concurrent connections
+
+## Broadcasting
+
+Use `ConnectionHandle::broadcast` to send messages to other clients:
+
+```rust
+conn.on_text(|msg, handle| async move {
+    // Send back to sender
+    let _ = handle.send_text(&msg.data).await;
+
+    // Broadcast to others
+    handle.broadcast.text(&msg.data).await;
+});
+```
 
 ## Performance Considerations
 
