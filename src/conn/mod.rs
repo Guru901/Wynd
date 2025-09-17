@@ -50,6 +50,7 @@
 //! }
 //! ```
 
+use core::panic;
 use std::{fmt::Debug, net::SocketAddr, sync::Arc}; // ← newly added import
 
 use futures::FutureExt;
@@ -60,8 +61,8 @@ use tokio::{
 use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
 use crate::{
-    handle::{Broadcaster, ConnectionHandle},
-    types::{BinaryMessageEvent, CloseEvent, Rooms, TextMessageEvent},
+    handle::ConnectionHandle,
+    types::{BinaryMessageEvent, CloseEvent, TextMessageEvent},
     wynd::BoxFuture,
 };
 
@@ -191,6 +192,10 @@ where
     pub(crate) state: Arc<Mutex<ConnState>>,
 
     clients: Arc<Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
+
+    /// The connection handle created during connection setup.
+    /// This is set by the server and used throughout the connection lifecycle.
+    pub(crate) handle: Arc<Mutex<Option<Arc<ConnectionHandle<T>>>>>,
 }
 
 impl<T> std::fmt::Debug for Connection<T>
@@ -311,6 +316,7 @@ where
             binary_message_handler: Arc::new(Mutex::new(None)),
             close_handler: Arc::new(Mutex::new(None)),
             clients: Arc::new(Mutex::new(Vec::new())),
+            handle: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -323,6 +329,16 @@ where
         clients: Arc<Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
     ) {
         self.clients = clients;
+    }
+
+    /// Set the connection handle for this connection.
+    ///
+    /// This method is called by the server to set the handle that was created
+    /// during connection setup, ensuring we use the same handle throughout
+    /// the connection lifecycle.
+    pub(crate) async fn set_handle(&self, handle: Arc<ConnectionHandle<T>>) {
+        let mut h = self.handle.lock().await;
+        *h = Some(handle);
     }
 
     /// Returns the unique identifier for this connection.
@@ -468,19 +484,16 @@ where
         > = self.open_handler.lock().await;
         *open_handler = Some(Box::new(move |handle| Box::pin(handler(handle))));
 
-        let broadcaster = Broadcaster {
-            clients: Arc::clone(&self.clients),
-            current_client_id: self.id,
+        // Get the existing handle that was set during connection setup
+        // If no handle is set (e.g., in tests), create a temporary one
+        let handle = {
+            let h = self.handle.lock().await;
+            if let Some(handle) = h.clone() {
+                handle
+            } else {
+                panic!("No handle set for connection {}", self.id);
+            }
         };
-
-        // Create connection handle and start the connection lifecycle
-        let handle = Arc::new(ConnectionHandle {
-            id: self.id,
-            writer: Arc::clone(&self.writer),
-            addr: self.addr,
-            broadcast: broadcaster,
-            state: Arc::clone(&self.state),
-        });
 
         let open_handler_clone = Arc::clone(&self.open_handler);
         let text_message_handler_clone = Arc::clone(&self.text_message_handler);
@@ -761,247 +774,5 @@ where
                 _ => {}
             }
         }
-    }
-}
-
-impl<T> ConnectionHandle<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
-{
-    /// Returns the unique identifier for this connection.
-    ///
-    /// Each connection gets a unique ID that can be used for logging,
-    /// debugging, and connection management.
-    ///
-    /// ## Returns
-    ///
-    /// Returns the connection ID as a `u64`.
-    ///
-    /// ## Example
-    ///
-    /// ```rust
-    /// use wynd::wynd::{Wynd, Standalone};
-    ///
-    /// #[tokio::main]
-    /// async fn main() {
-    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
-    ///
-    ///     wynd.on_connection(|conn| async move {
-    ///         conn.on_open(|handle| async move {
-    ///             println!("Connection {} opened", handle.id());
-    ///         })
-    ///         .await;
-    ///     });
-    /// }
-    /// ```
-    pub fn id(&self) -> u64 {
-        self.id
-    }
-
-    /// Returns the remote address of this connection.
-    ///
-    /// This can be used for logging, access control, and connection
-    /// management purposes.
-    ///
-    /// ## Returns
-    ///
-    /// Returns the `SocketAddr` of the remote client.
-    ///
-    /// ## Example
-    ///
-    /// ```rust
-    /// use wynd::wynd::{Wynd, Standalone};
-    ///
-    /// #[tokio::main]
-    /// async fn main() {
-    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
-    ///
-    ///     wynd.on_connection(|conn| async move {
-    ///         conn.on_open(|handle| async move {
-    ///             println!("Connection from: {}", handle.addr());
-    ///         })
-    ///         .await;
-    ///     });
-    /// }
-    /// ```
-    pub fn addr(&self) -> SocketAddr {
-        self.addr
-    }
-
-    /// Returns the current state of the WebSocket handler.
-    ///
-    /// This method asynchronously acquires a lock on the internal state
-    /// and returns a clone of the current [`ConnState`]. The state can be
-    /// used to determine if the connection is open, closed, connecting, or closing.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use wynd::conn::ConnState;
-    /// use tokio::net::TcpStream;
-    /// use wynd::conn::ConnectionHandle;
-    ///
-    /// async fn test(handle: &ConnectionHandle<TcpStream>) {
-    ///     let state = handle.state().await;
-    ///     match state {
-    ///         ConnState::OPEN => println!("Connection is open"),
-    ///         ConnState::CLOSED => println!("Connection is closed"),
-    ///         ConnState::CONNECTING => println!("Connection is connecting"),
-    ///         ConnState::CLOSING => println!("Connection is closing"),
-    ///     }
-    /// }
-    /// ```
-    pub async fn state(&self) -> ConnState {
-        let s = self.state.lock().await;
-        s.clone()
-    }
-
-    /// Sends a text message to the client.
-    ///
-    /// This method sends a UTF-8 text message to the WebSocket client.
-    /// The message is sent asynchronously and the method returns immediately.
-    ///
-    /// ## Parameters
-    ///
-    /// - `text`: The text message to send
-    ///
-    /// ## Returns
-    ///
-    /// Returns `Ok(())` if the message was sent successfully, or an error
-    /// if the send operation failed.
-    ///
-    /// ## Example
-    ///
-    /// ```rust
-    /// use wynd::wynd::{Wynd, Standalone};
-    ///
-    /// #[tokio::main]
-    /// async fn main() {
-    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
-    ///
-    ///     wynd.on_connection(|conn| async move {
-    ///         conn.on_open(|handle| async move {
-    ///             // Send a welcome message
-    ///             let _ = handle.send_text("Welcome to the server!").await;
-    ///         })
-    ///         .await;
-    ///
-    ///         conn.on_text(|msg, handle| async move {
-    ///             // Echo the message back
-    ///             let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
-    ///         });
-    ///     });
-    /// }
-    /// ```
-    pub async fn send_text(&self, text: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let mut writer = self.writer.lock().await;
-        futures::SinkExt::send(&mut *writer, Message::Text(text.into())).await?;
-        Ok(())
-    }
-
-    pub async fn join(&self, room: &str) -> Result<(), ()> {
-        Ok(())
-    }
-
-    pub async fn leave(&self, room: &str) -> Result<(), ()> {
-        Ok(())
-    }
-
-    pub fn to(&self, room: &str) -> Rooms<T> {
-        Rooms::<T>::new()
-    }
-
-    /// Sends binary data to the client.
-    ///
-    /// This method sends binary data to the WebSocket client.
-    /// The data is sent asynchronously and the method returns immediately.
-    ///
-    /// ## Parameters
-    ///
-    /// - `data`: The binary data to send
-    ///
-    /// ## Returns
-    ///
-    /// Returns `Ok(())` if the data was sent successfully, or an error
-    /// if the send operation failed.
-    ///
-    /// ## Example
-    ///
-    /// ```rust
-    /// use wynd::wynd::{Wynd, Standalone};
-    ///
-    /// #[tokio::main]
-    /// async fn main() {
-    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
-    ///
-    ///     wynd.on_connection(|conn| async move {
-    ///         conn.on_open(|handle| async move {
-    ///             // Send some binary data
-    ///             let data = vec![1, 2, 3, 4, 5];
-    ///             let _ = handle.send_binary(data).await;
-    ///         })
-    ///         .await;
-    ///
-    ///         conn.on_binary(|msg, handle| async move {
-    ///             // Echo the binary data back
-    ///             let _ = handle.send_binary(msg.data).await;
-    ///         });
-    ///     });
-    /// }
-    /// ```
-    pub async fn send_binary(&self, data: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
-        let mut writer = self.writer.lock().await;
-        futures::SinkExt::send(&mut *writer, Message::Binary(data.into())).await?;
-        Ok(())
-    }
-
-    /// Closes the WebSocket connection gracefully.
-    ///
-    /// This method sends a close frame to the client and initiates
-    /// a graceful shutdown of the WebSocket connection.
-    ///
-    /// ## Returns
-    ///
-    /// Returns `Ok(())` if the close frame was sent successfully, or an error
-    /// if the send operation failed.
-    ///
-    /// ## Example
-    ///
-    /// ```rust
-    /// use wynd::wynd::{Wynd, Standalone};
-    ///
-    /// #[tokio::main]
-    /// async fn main() {
-    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
-    ///
-    ///     wynd.on_connection(|conn| async move {
-    ///         conn.on_open(|handle| async move {
-    ///             println!("Connection opened");
-    ///         })
-    ///         .await;
-    ///
-    ///         conn.on_text(|msg, handle| async move {
-    ///             match msg.data.as_str() {
-    ///                 "quit" => {
-    ///                     println!("Client requested disconnect");
-    ///                     let _ = handle.close().await;
-    ///                 }
-    ///                 _ => {
-    ///                     let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
-    ///                 }
-    ///             }
-    ///         });
-    ///     });
-    /// }
-    /// ```
-    pub async fn close(&self) -> Result<(), Box<dyn std::error::Error>> {
-        // Mark state as CLOSING to reflect graceful shutdown in progress
-        {
-            let mut s = self.state.lock().await;
-            *s = ConnState::CLOSING;
-        }
-        let mut writer = self.writer.lock().await;
-        futures::SinkExt::send(&mut *writer, Message::Close(None)).await?;
-        Ok(())
     }
 }

@@ -132,6 +132,7 @@ where
     pub(crate) connection_handler:
         Option<Box<dyn Fn(Arc<Connection<T>>) -> BoxFuture<()> + Send + Sync + 'static>>,
 
+    /// The address the server is listening on.
     pub(crate) addr: SocketAddr,
 
     /// Handler for server-level errors.
@@ -159,6 +160,10 @@ where
     /// Connections are added when established and should be removed when closed.
     /// Protected by a tokio Mutex for thread-safe access.
     pub clients: Arc<tokio::sync::Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
+    /// Registry of active rooms for group messaging.
+    ///
+    /// Rooms allow multiple connections to participate in group communication.
+    /// Protected by a tokio Mutex for thread-safe access.
     pub rooms: Arc<tokio::sync::Mutex<Vec<Rooms<T>>>>,
 }
 
@@ -415,6 +420,9 @@ where
 
         let arc_connection = Arc::new(connection);
 
+        // Set the handle on the connection so it can be used in on_open
+        arc_connection.set_handle(Arc::clone(&handle)).await;
+
         {
             let mut clients = self.clients.lock().await;
             clients.push((Arc::clone(&arc_connection), Arc::clone(&handle)));
@@ -603,6 +611,9 @@ impl Wynd<WithRipress> {
                                     });
 
                                     let arc_connection = Arc::new(connection);
+
+                                    // Set the handle on the connection so it can be used in on_open
+                                    arc_connection.set_handle(Arc::clone(&handle)).await;
 
                                     {
                                         let mut clients = wynd_clone.clients.lock().await;
