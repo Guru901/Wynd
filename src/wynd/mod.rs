@@ -64,8 +64,9 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 use tokio_tungstenite::accept_async;
 
-use crate::conn::{Broadcaster, Connection, ConnectionHandle};
-use crate::types::WyndError;
+use crate::conn::Connection;
+use crate::handle::{Broadcaster, ConnectionHandle};
+use crate::types::{Rooms, WyndError};
 use std::fmt::Debug;
 
 /// Type alias for connection ID counter.
@@ -119,6 +120,7 @@ pub(crate) type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>
 ///     });
 /// }
 /// ```
+
 pub struct Wynd<T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
@@ -128,7 +130,7 @@ where
     /// This handler is called whenever a new WebSocket connection is established.
     /// It receives a `Connection` instance that can be used to set up event handlers.
     pub(crate) connection_handler:
-        Option<Box<dyn Fn(Arc<Connection<T>>) -> BoxFuture<()> + Send + Sync>>,
+        Option<Box<dyn Fn(Arc<Connection<T>>) -> BoxFuture<()> + Send + Sync + 'static>>,
 
     pub(crate) addr: SocketAddr,
 
@@ -136,7 +138,8 @@ where
     ///
     /// This handler is called when server-level errors occur, such as
     /// connection acceptance failures or WebSocket handshake errors.
-    pub(crate) error_handler: Option<Box<dyn Fn(WyndError) -> BoxFuture<()> + Send + Sync>>,
+    pub(crate) error_handler:
+        Option<Box<dyn Fn(WyndError) -> BoxFuture<()> + Send + Sync + 'static>>,
 
     /// Handler for server shutdown.
     ///
@@ -156,6 +159,23 @@ where
     /// Connections are added when established and should be removed when closed.
     /// Protected by a tokio Mutex for thread-safe access.
     pub clients: Arc<tokio::sync::Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
+    pub rooms: Arc<tokio::sync::Mutex<Vec<Rooms<T>>>>,
+}
+
+impl<T> Debug for Wynd<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Wynd").finish()
+    }
+}
+
+#[cfg(feature = "with-ripress")]
+impl Debug for Wynd<WithRipress> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Wynd").finish()
+    }
 }
 
 /// Tells the library which type to use for the server.
@@ -210,6 +230,7 @@ where
             next_connection_id: ConnectionId::new(0),
             clients: Arc::new(tokio::sync::Mutex::new(Vec::new())),
             addr: SocketAddr::from(([0, 0, 0, 0], 8080)),
+            rooms: Arc::new(tokio::sync::Mutex::new(Vec::new())),
         }
     }
 

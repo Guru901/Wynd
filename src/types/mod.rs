@@ -1,6 +1,14 @@
 #![warn(missing_docs)]
 
-use std::{fmt::Display, ops::Deref};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+    ops::Deref,
+};
+
+use tokio::io::{AsyncRead, AsyncWrite};
+
+use crate::handle::ConnectionHandle;
 
 /// Represents a text message event received from a WebSocket client.
 ///
@@ -330,3 +338,38 @@ impl Display for WyndError {
 }
 
 impl std::error::Error for WyndError {}
+
+#[derive(Debug)]
+pub struct Rooms<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Debug + 'static,
+{
+    pub(crate) room_clients: HashMap<String, ConnectionHandle<T>>,
+}
+
+impl<T> Rooms<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Debug + 'static,
+{
+    pub fn new() -> Self {
+        Self {
+            room_clients: HashMap::new(),
+        }
+    }
+
+    pub async fn text(&self, text: &str) {
+        self.room_clients.iter().for_each(|(_, client)| {
+            async move {
+                client.send_text(text).await.unwrap();
+            };
+        });
+    }
+
+    pub async fn binary(&self, bytes: &[u8]) {
+        self.room_clients.iter().for_each(|(_, client)| {
+            async move {
+                client.send_binary(bytes.into()).await.unwrap();
+            };
+        });
+    }
+}

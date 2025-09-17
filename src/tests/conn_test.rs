@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::conn::{Broadcaster, ConnState, Connection, ConnectionHandle};
+    use crate::conn::{ConnState, Connection};
+    use crate::handle::{Broadcaster, ConnectionHandle};
 
     use std::{
         io,
