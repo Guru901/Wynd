@@ -566,7 +566,6 @@ impl Wynd<TcpStream> {
                     RoomEvents::LeaveRoom {
                         client_id,
                         room_name,
-                        handle: _,
                     } => {
                         let mut rooms = rooms.lock().await;
                         if let Some(room) =

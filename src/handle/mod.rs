@@ -186,7 +186,7 @@ where
         Ok(())
     }
 
-    pub async fn join(&self, room: &str) -> Result<(), ()> {
+    pub async fn join(&self, room: &str) -> Result<(), Box<dyn std::error::Error>> {
         self.room_sender
             .send(RoomEvents::JoinRoom {
                 client_id: self.id,
@@ -194,12 +194,20 @@ where
                 room_name: room.to_string(),
             })
             .await
-            .unwrap();
+            .map_err(|e| format!("Failed to join room: {}", e))?;
 
         Ok(())
     }
 
-    pub async fn leave(&self, room: &str) -> Result<(), ()> {
+    pub async fn leave(&self, room: &str) -> Result<(), Box<dyn std::error::Error>> {
+        self.room_sender
+            .send(RoomEvents::LeaveRoom {
+                client_id: self.id,
+                room_name: room.to_string(),
+            })
+            .await
+            .map_err(|e| format!("Failed to leave room: {}", e))?;
+
         Ok(())
     }
 

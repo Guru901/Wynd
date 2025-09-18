@@ -361,11 +361,10 @@ where
     }
 
     pub async fn text(&self, text: &str) {
-        self.room_clients.iter().for_each(|(_, client)| {
-            async move {
-                client.send_text(text).await.unwrap();
-            };
-        });
+        let recipients: Vec<_> = self.room_clients.values().cloned().collect();
+        for client in recipients {
+            let _ = client.send_text(text).await;
+        }
     }
 
     pub async fn binary(&self, bytes: &[u8]) {
@@ -402,7 +401,6 @@ where
 
     LeaveRoom {
         client_id: u64,
-        handle: ConnectionHandle<T>,
         room_name: String,
     },
 }
