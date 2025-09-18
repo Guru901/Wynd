@@ -361,9 +361,16 @@ where
     }
 
     pub async fn text(&self, text: &str) {
-        let recipients: Vec<_> = self.room_clients.values().cloned().collect();
-        for client in recipients {
-            let _ = client.send_text(text).await;
+        let clients: Vec<ConnectionHandle<T>> = self.room_clients.values().cloned().collect();
+        for h in clients {
+            if let Err(e) = h.send_text(text).await {
+                eprintln!(
+                    "room[{}] text broadcast failed to {}: {}",
+                    self.room_name,
+                    h.id(),
+                    e
+                );
+            }
         }
     }
 
