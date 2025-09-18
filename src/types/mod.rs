@@ -371,11 +371,11 @@ where
     }
 
     pub async fn binary(&self, bytes: &[u8]) {
-        self.room_clients.iter().for_each(|(_, client)| {
-            async move {
-                client.send_binary(bytes.into()).await.unwrap();
-            };
-        });
+        let payload = bytes.to_vec();
+        let recipients: Vec<_> = self.room_clients.values().cloned().collect();
+        for client in recipients {
+            let _ = client.send_binary(payload.clone()).await;
+        }
     }
 }
 
