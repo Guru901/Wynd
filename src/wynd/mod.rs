@@ -67,7 +67,8 @@ use tokio_tungstenite::accept_async;
 
 use crate::conn::Connection;
 use crate::handle::{Broadcaster, ConnectionHandle};
-use crate::types::{Room, RoomEvents, WyndError};
+use crate::room::{Room, RoomEvents};
+use crate::types::WyndError;
 use std::fmt::Debug;
 
 /// Type alias for connection ID counter.

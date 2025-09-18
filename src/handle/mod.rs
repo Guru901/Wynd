@@ -8,8 +8,49 @@ use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
 use crate::{
     conn::{ConnState, Connection},
-    types::RoomEvents,
+    room::RoomEvents,
 };
+
+/// Handle for interacting with a WebSocket connection.
+///
+/// `ConnectionHandle` provides methods to send messages and manage
+/// a WebSocket connection. It can be safely shared between threads
+/// and used in async contexts.
+///
+/// ## Features
+///
+/// - **Send Messages**: Send text and binary messages to the client
+/// - **Connection Management**: Close the connection gracefully
+/// - **Thread Safe**: Can be shared between threads and used in async contexts
+/// - **Connection Info**: Access connection ID and remote address
+///
+/// ## Example
+///
+/// ```rust
+/// use wynd::wynd::{Wynd, Standalone};
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let mut wynd: Wynd<Standalone> = Wynd::new();
+///
+///     wynd.on_connection(|conn| async move {
+///         conn.on_open(|handle| async move {
+///             // Send a welcome message
+///             let _ = handle.send_text("Welcome to the server!").await;
+///             
+///             // Send some binary data
+///             let data = vec![1, 2, 3, 4, 5];
+///             let _ = handle.send_binary(data).await;
+///         })
+///         .await;
+///
+///         conn.on_text(|msg, handle| async move {
+///             // Echo the message back
+///             let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
+///         });
+///     });
+/// }
+/// ```
 
 #[derive(Debug)]
 pub struct ConnectionHandle<T>
@@ -186,6 +227,14 @@ where
         Ok(())
     }
 
+    /// Joins the specified room.
+    ///
+    /// Enqueues a request to add this connection to a room, enabling
+    /// room-wide broadcast delivery to this client.
+    ///
+    /// - `room`: The target room name.
+    ///
+    /// Returns `Ok(())` if the join request was sent, otherwise an error.
     pub async fn join(&self, room: &str) -> Result<(), Box<dyn std::error::Error>> {
         self.room_sender
             .send(RoomEvents::JoinRoom {
@@ -199,6 +248,14 @@ where
         Ok(())
     }
 
+    /// Leaves the specified room.
+    ///
+    /// Enqueues a request to remove this connection from a room so it no
+    /// longer receives room broadcasts.
+    ///
+    /// - `room`: The target room name.
+    ///
+    /// Returns `Ok(())` if the leave request was sent, otherwise an error.
     pub async fn leave(&self, room: &str) -> Result<(), Box<dyn std::error::Error>> {
         self.room_sender
             .send(RoomEvents::LeaveRoom {
@@ -211,6 +268,15 @@ where
         Ok(())
     }
 
+    /// Sends a text message to all members of a room.
+    ///
+    /// This does not send back to the caller unless the underlying
+    /// room handler includes the sender.
+    ///
+    /// - `room`: The target room name.
+    /// - `text`: The UTF-8 message to broadcast.
+    ///
+    /// Returns `Ok(())` if the broadcast request was sent, otherwise an error.
     pub async fn send_text_to_room(
         &self,
         room: &str,

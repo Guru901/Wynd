@@ -97,4 +97,15 @@ pub mod types;
 /// for creating and managing WebSocket servers.
 pub mod wynd;
 
+/// Connection handle utilities.
+///
+/// This module exposes [`handle::ConnectionHandle`] and helpers for interacting
+/// with a live WebSocket connection (sending messages, closing, broadcasting,
+/// and room operations).
 pub mod handle;
+
+/// Room management and room event types.
+///
+/// Provides primitives for joining/leaving rooms and broadcasting text/binary
+/// messages to all members in a room.
+pub mod room;

@@ -1,15 +1,9 @@
 #![warn(missing_docs)]
 
 use std::{
-    collections::HashMap,
     fmt::{Debug, Display},
     ops::Deref,
-    sync::Arc,
 };
-
-use tokio::io::{AsyncRead, AsyncWrite};
-
-use crate::{conn::Connection, handle::ConnectionHandle};
 
 /// Represents a text message event received from a WebSocket client.
 ///
@@ -339,82 +333,3 @@ impl Display for WyndError {
 }
 
 impl std::error::Error for WyndError {}
-
-#[derive(Debug)]
-pub struct Room<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Debug + 'static,
-{
-    pub(crate) room_clients: HashMap<u64, ConnectionHandle<T>>,
-    pub(crate) room_name: String,
-}
-
-impl<T> Room<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Debug + 'static,
-{
-    pub fn new() -> Self {
-        Self {
-            room_clients: HashMap::new(),
-            room_name: String::new(),
-        }
-    }
-
-    pub async fn text(&self, text: &str) {
-        let clients: Vec<ConnectionHandle<T>> = self.room_clients.values().cloned().collect();
-        for h in clients {
-            if let Err(e) = h.send_text(text).await {
-                eprintln!(
-                    "room[{}] text broadcast failed to {}: {}",
-                    self.room_name,
-                    h.id(),
-                    e
-                );
-            }
-        }
-    }
-
-    pub async fn binary(&self, bytes: &[u8]) {
-        let payload = bytes.to_vec();
-        let clients: Vec<ConnectionHandle<T>> = self.room_clients.values().cloned().collect();
-        for h in clients {
-            if let Err(e) = h.send_binary(payload.clone()).await {
-                eprintln!(
-                    "room[{}] binary broadcast failed to {}: {}",
-                    self.room_name,
-                    h.id(),
-                    e
-                );
-            }
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum RoomEvents<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
-{
-    JoinRoom {
-        client_id: u64,
-        handle: ConnectionHandle<T>,
-        room_name: String,
-    },
-
-    TextMessage {
-        client_id: u64,
-        room_name: String,
-        text: String,
-    },
-
-    BinaryMessage {
-        client_id: u64,
-        room_name: String,
-        bytes: Vec<u8>,
-    },
-
-    LeaveRoom {
-        client_id: u64,
-        room_name: String,
-    },
-}

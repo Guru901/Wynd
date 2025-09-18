@@ -50,8 +50,7 @@
 //! }
 //! ```
 
-use core::panic;
-use std::{fmt::Debug, net::SocketAddr, sync::Arc}; // ← newly added import
+use std::{fmt::Debug, net::SocketAddr, sync::Arc};
 
 use futures::FutureExt;
 use tokio::{
@@ -61,8 +60,9 @@ use tokio::{
 use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
 use crate::{
-    handle::{Broadcaster, ConnectionHandle},
-    types::{BinaryMessageEvent, CloseEvent, TextMessageEvent, RoomEvents},
+    handle::ConnectionHandle,
+    room::RoomEvents,
+    types::{BinaryMessageEvent, CloseEvent, TextMessageEvent},
     wynd::BoxFuture,
 };
 
@@ -242,47 +242,6 @@ impl std::fmt::Display for ConnState {
         }
     }
 }
-
-/// Handle for interacting with a WebSocket connection.
-///
-/// `ConnectionHandle` provides methods to send messages and manage
-/// a WebSocket connection. It can be safely shared between threads
-/// and used in async contexts.
-///
-/// ## Features
-///
-/// - **Send Messages**: Send text and binary messages to the client
-/// - **Connection Management**: Close the connection gracefully
-/// - **Thread Safe**: Can be shared between threads and used in async contexts
-/// - **Connection Info**: Access connection ID and remote address
-///
-/// ## Example
-///
-/// ```rust
-/// use wynd::wynd::{Wynd, Standalone};
-///
-/// #[tokio::main]
-/// async fn main() {
-///     let mut wynd: Wynd<Standalone> = Wynd::new();
-///
-///     wynd.on_connection(|conn| async move {
-///         conn.on_open(|handle| async move {
-///             // Send a welcome message
-///             let _ = handle.send_text("Welcome to the server!").await;
-///             
-///             // Send some binary data
-///             let data = vec![1, 2, 3, 4, 5];
-///             let _ = handle.send_binary(data).await;
-///         })
-///         .await;
-///
-///         conn.on_text(|msg, handle| async move {
-///             // Echo the message back
-///             let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
-///         });
-///     });
-/// }
-/// ```
 
 impl<T> Connection<T>
 where
@@ -490,7 +449,7 @@ where
                 h
             } else {
                 // Fallback handle uses this connection's writer/state and an ephemeral room channel
-                let (tx, _rx) = tokio::sync::mpsc::channel::<crate::types::RoomEvents<T>>(1);
+                let (tx, _rx) = tokio::sync::mpsc::channel::<RoomEvents<T>>(1);
                 Arc::new(crate::handle::ConnectionHandle {
                     id: self.id,
                     writer: Arc::clone(&self.writer),
