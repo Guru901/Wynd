@@ -521,7 +521,6 @@ impl Wynd<TcpStream> {
                             let room = Room {
                                 room_clients: HashMap::from([(client_id, handle)]),
                                 room_name,
-                                room_id: 0,
                             };
                             rooms.push(room);
                         }

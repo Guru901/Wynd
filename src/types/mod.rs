@@ -347,7 +347,6 @@ where
 {
     pub(crate) room_clients: HashMap<u64, ConnectionHandle<T>>,
     pub(crate) room_name: String,
-    pub(crate) room_id: u64,
 }
 
 impl<T> Room<T>
@@ -358,7 +357,6 @@ where
         Self {
             room_clients: HashMap::new(),
             room_name: String::new(),
-            room_id: 0,
         }
     }
 
