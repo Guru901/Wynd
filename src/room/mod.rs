@@ -127,12 +127,34 @@ where
     },
 }
 
+/// Provides methods for sending messages to a specific room.
+///
+/// `RoomMethods` allows you to send text or binary messages to all clients in a room,
+/// either including or excluding the sender. It is typically obtained via [`Handle::to()`].
+///
+/// # Type Parameters
+///
+/// * `T` - The underlying stream type for the client connection, which must implement
+///   `AsyncRead`, `AsyncWrite`, `Unpin`, `Debug`, `Send`, and have a `'static` lifetime.
+///
+/// # Lifetimes
+///
+/// * `'room_sender` - The lifetime of the room sender reference.
+///
+/// # Fields
+///
+/// * `room_name` - The name of the target room.
+/// * `room_sender` - The sender used to dispatch room events.
+/// * `id` - The unique identifier of the client (sender).
 pub struct RoomMethods<'room_sender, T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
 {
+    /// The name of the target room.
     pub(crate) room_name: String,
+    /// The sender used to dispatch room events.
     pub(crate) room_sender: Arc<&'room_sender Sender<RoomEvents<T>>>,
+    /// The unique identifier of the client (sender).
     pub(crate) id: u64,
 }
 
@@ -140,6 +162,15 @@ impl<T> RoomMethods<'_, T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
 {
+    /// Sends a UTF-8 text message to all clients in the room except the current client (sender).
+    ///
+    /// # Arguments
+    ///
+    /// * `text` - The text message to send.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), std::io::Error>` - Ok if the message was sent, Err otherwise.
     pub async fn text(&self, text: &str) -> Result<(), std::io::Error> {
         self.room_sender
             .send(RoomEvents::TextMessage {
@@ -157,6 +188,15 @@ where
         Ok(())
     }
 
+    /// Sends a UTF-8 text message to all clients in the room including the current client (sender).
+    ///
+    /// # Arguments
+    ///
+    /// * `text` - The text message to broadcast.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), std::io::Error>` - Ok if the message was broadcast, Err otherwise.
     pub async fn emit_text(&self, text: &str) -> Result<(), std::io::Error> {
         self.room_sender
             .send(RoomEvents::EmitTextMessage {
@@ -174,6 +214,15 @@ where
         Ok(())
     }
 
+    /// Sends a binary message to all clients in the room except the current client (sender).
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - The binary payload to send.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), std::io::Error>` - Ok if the message was sent, Err otherwise.
     pub async fn binary(&self, bytes: &[u8]) -> Result<(), std::io::Error> {
         self.room_sender
             .send(RoomEvents::BinaryMessage {
@@ -191,6 +240,15 @@ where
         Ok(())
     }
 
+    /// Sends a binary message to all clients in the room including the current client (sender).
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - The binary payload to broadcast.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), std::io::Error>` - Ok if the message was broadcast, Err otherwise.
     pub async fn emit_binary(&self, bytes: &[u8]) -> Result<(), std::io::Error> {
         self.room_sender
             .send(RoomEvents::EmitBinaryMessage {

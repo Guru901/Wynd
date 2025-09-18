@@ -278,6 +278,24 @@ where
         Ok(())
     }
 
+    /// Returns a [`RoomMethods`] instance for sending messages to a specific room.
+    ///
+    /// This allows you to send text or binary messages to all clients in the given room,
+    /// either including or excluding yourself (the sender), using the methods on [`RoomMethods`].
+    ///
+    /// # Arguments
+    ///
+    /// * `room_name` - The name of the target room.
+    ///
+    /// # Returns
+    ///
+    /// A [`RoomMethods`] object bound to the specified room and this connection.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// handle.to("my_room").text("Hello, room!").await?;
+    /// ```
     pub fn to(&self, room_name: &str) -> RoomMethods<T> {
         RoomMethods {
             room_name: room_name.to_string(),
