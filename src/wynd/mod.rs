@@ -504,8 +504,6 @@ impl Wynd<TcpStream> {
         let rooms = Arc::clone(&self.rooms);
         tokio::spawn(async move {
             while let Some(room_data) = room_receiver.recv().await {
-                println!("room data: {:?}", room_data);
-                println!("rooms: {:?}", rooms);
                 match room_data {
                     RoomEvents::JoinRoom {
                         client_id,
@@ -515,12 +513,17 @@ impl Wynd<TcpStream> {
                         let mut rooms = rooms.lock().await;
                         let maybe_room = rooms.iter_mut().find(|room| room.room_name == room_name);
                         if let Some(room) = maybe_room {
-                            room.room_clients.insert(client_id, handle);
+                            if room.room_clients.contains_key(&client_id) {
+                                continue;
+                            } else {
+                                room.room_clients.insert(client_id, handle);
+                            }
                         } else {
                             let room = Room {
                                 room_clients: HashMap::from([(client_id, handle)]),
                                 room_name,
                             };
+
                             rooms.push(room);
                         }
                     }
@@ -529,16 +532,26 @@ impl Wynd<TcpStream> {
                         text,
                         client_id,
                     } => {
+                        let mut rooms = rooms.lock().await;
+
+                        let maybe_room = rooms.iter_mut().find(|room| room.room_name == room_name);
+
+                        if maybe_room.is_none() {
+                            return;
+                        }
+
+                        if !maybe_room.unwrap().room_clients.contains_key(&client_id) {
+                            return;
+                        }
+
                         let handles: Vec<_> = {
-                            let rooms_guard = rooms.lock().await;
-                            if let Some(room) =
-                                rooms_guard.iter().find(|r| r.room_name == room_name)
-                            {
+                            if let Some(room) = rooms.iter().find(|r| r.room_name == room_name) {
                                 room.room_clients.values().cloned().collect()
                             } else {
                                 Vec::new()
                             }
                         };
+
                         if handles.is_empty() {
                             eprintln!("Room not found: {}", room_name);
                         } else {
@@ -558,9 +571,20 @@ impl Wynd<TcpStream> {
                         bytes,
                         client_id,
                     } => {
+                        let mut rooms = rooms.lock().await;
+
+                        let maybe_room = rooms.iter_mut().find(|room| room.room_name == room_name);
+
+                        if maybe_room.is_none() {
+                            return;
+                        }
+
+                        if !maybe_room.unwrap().room_clients.contains_key(&client_id) {
+                            return;
+                        }
+
                         let recipients = {
-                            let rooms_guard = rooms.lock().await;
-                            rooms_guard
+                            rooms
                                 .iter()
                                 .find(|r| r.room_name == room_name)
                                 .map(|r| r.room_clients.values().cloned().collect::<Vec<_>>())
@@ -580,15 +604,24 @@ impl Wynd<TcpStream> {
                         }
                     }
                     RoomEvents::EmitTextMessage {
-                        client_id: _,
+                        client_id,
                         room_name,
                         text,
                     } => {
+                        let mut rooms = rooms.lock().await;
+
+                        let maybe_room = rooms.iter_mut().find(|room| room.room_name == room_name);
+
+                        if maybe_room.is_none() {
+                            return;
+                        }
+
+                        if !maybe_room.unwrap().room_clients.contains_key(&client_id) {
+                            return;
+                        }
+
                         let handles: Vec<_> = {
-                            let rooms_guard = rooms.lock().await;
-                            if let Some(room) =
-                                rooms_guard.iter().find(|r| r.room_name == room_name)
-                            {
+                            if let Some(room) = rooms.iter().find(|r| r.room_name == room_name) {
                                 room.room_clients.values().cloned().collect()
                             } else {
                                 Vec::new()
@@ -605,13 +638,24 @@ impl Wynd<TcpStream> {
                         }
                     }
                     RoomEvents::EmitBinaryMessage {
-                        client_id: _,
+                        client_id,
                         room_name,
                         bytes,
                     } => {
+                        let mut rooms = rooms.lock().await;
+
+                        let maybe_room = rooms.iter_mut().find(|room| room.room_name == room_name);
+
+                        if maybe_room.is_none() {
+                            return;
+                        }
+
+                        if !maybe_room.unwrap().room_clients.contains_key(&client_id) {
+                            return;
+                        }
+
                         let recipients = {
-                            let rooms_guard = rooms.lock().await;
-                            rooms_guard
+                            rooms
                                 .iter()
                                 .find(|r| r.room_name == room_name)
                                 .map(|r| r.room_clients.values().cloned().collect::<Vec<_>>())
