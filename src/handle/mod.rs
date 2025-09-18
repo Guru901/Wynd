@@ -294,7 +294,12 @@ where
     /// # Example
     ///
     /// ```
-    /// handle.to("my_room").text("Hello, room!").await?;
+    /// use wynd::handle::ConnectionHandle;
+    /// use tokio::net::TcpStream;
+    ///
+    /// async fn test(handle: &ConnectionHandle<TcpStream>) {
+    ///     handle.to("my_room").text("Hello, room!").await.unwrap();
+    /// };
     /// ```
     pub fn to(&self, room_name: &str) -> RoomMethods<T> {
         RoomMethods {
