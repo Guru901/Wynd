@@ -168,7 +168,7 @@ where
             .map_err(|e| {
                 std::io::Error::new(
                     std::io::ErrorKind::Other,
-                    format!("Failed to send text to room: {}", e),
+                    format!("Failed to emit text to room: {}", e),
                 )
             })?;
         Ok(())
@@ -185,7 +185,7 @@ where
             .map_err(|e| {
                 std::io::Error::new(
                     std::io::ErrorKind::Other,
-                    format!("Failed to send text to room: {}", e),
+                    format!("Failed to send binary to room: {}", e),
                 )
             })?;
         Ok(())
@@ -202,7 +202,7 @@ where
             .map_err(|e| {
                 std::io::Error::new(
                     std::io::ErrorKind::Other,
-                    format!("Failed to send text to room: {}", e),
+                    format!("Failed to emit binary to room: {}", e),
                 )
             })?;
         Ok(())
