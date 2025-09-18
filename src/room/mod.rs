@@ -1,7 +1,8 @@
 use crate::handle::ConnectionHandle;
-use std::collections::HashMap;
 use std::fmt::Debug;
+use std::{collections::HashMap, sync::Arc};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::sync::mpsc::Sender;
 
 /// A collection of connections identified by a room name.
 ///
@@ -87,8 +88,28 @@ where
         text: String,
     },
 
+    /// Text message broadcast to a room.
+    EmitTextMessage {
+        /// Sender client identifier.
+        client_id: u64,
+        /// Target room name.
+        room_name: String,
+        /// UTF-8 text payload.
+        text: String,
+    },
+
     /// Binary message broadcast to a room.
     BinaryMessage {
+        /// Sender client identifier.
+        client_id: u64,
+        /// Target room name.
+        room_name: String,
+        /// Binary payload.
+        bytes: Vec<u8>,
+    },
+
+    /// Binary message broadcast to a room.
+    EmitBinaryMessage {
         /// Sender client identifier.
         client_id: u64,
         /// Target room name.
@@ -104,4 +125,86 @@ where
         /// Target room name to leave.
         room_name: String,
     },
+}
+
+pub struct RoomMethods<'room_sender, T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
+{
+    pub(crate) room_name: String,
+    pub(crate) room_sender: Arc<&'room_sender Sender<RoomEvents<T>>>,
+    pub(crate) id: u64,
+}
+
+impl<T> RoomMethods<'_, T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
+{
+    pub async fn text(&self, text: &str) -> Result<(), std::io::Error> {
+        self.room_sender
+            .send(RoomEvents::TextMessage {
+                client_id: self.id,
+                room_name: self.room_name.clone(),
+                text: text.into(),
+            })
+            .await
+            .map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to send text to room: {}", e),
+                )
+            })?;
+        Ok(())
+    }
+
+    pub async fn emit_text(&self, text: &str) -> Result<(), std::io::Error> {
+        self.room_sender
+            .send(RoomEvents::EmitTextMessage {
+                client_id: self.id,
+                room_name: self.room_name.clone(),
+                text: text.into(),
+            })
+            .await
+            .map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to send text to room: {}", e),
+                )
+            })?;
+        Ok(())
+    }
+
+    pub async fn binary(&self, bytes: &[u8]) -> Result<(), std::io::Error> {
+        self.room_sender
+            .send(RoomEvents::EmitBinaryMessage {
+                client_id: self.id,
+                room_name: self.room_name.clone(),
+                bytes: bytes.into(),
+            })
+            .await
+            .map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to send text to room: {}", e),
+                )
+            })?;
+        Ok(())
+    }
+
+    pub async fn emit_binary(&self, bytes: &[u8]) -> Result<(), std::io::Error> {
+        self.room_sender
+            .send(RoomEvents::BinaryMessage {
+                client_id: self.id,
+                room_name: self.room_name.clone(),
+                bytes: bytes.into(),
+            })
+            .await
+            .map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to send text to room: {}", e),
+                )
+            })?;
+        Ok(())
+    }
 }

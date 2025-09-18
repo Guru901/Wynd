@@ -525,6 +525,61 @@ impl Wynd<TcpStream> {
                         }
                     }
                     RoomEvents::TextMessage {
+                        room_name,
+                        text,
+                        client_id,
+                    } => {
+                        let handles: Vec<_> = {
+                            let rooms_guard = rooms.lock().await;
+                            if let Some(room) =
+                                rooms_guard.iter().find(|r| r.room_name == room_name)
+                            {
+                                room.room_clients.values().cloned().collect()
+                            } else {
+                                Vec::new()
+                            }
+                        };
+                        if handles.is_empty() {
+                            eprintln!("Room not found: {}", room_name);
+                        } else {
+                            for h in handles {
+                                if h.id == client_id {
+                                    continue;
+                                } else {
+                                    if let Err(e) = h.send_text(&text).await {
+                                        eprintln!("Failed to send text to client: {}", e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    RoomEvents::BinaryMessage {
+                        room_name,
+                        bytes,
+                        client_id,
+                    } => {
+                        let recipients = {
+                            let rooms_guard = rooms.lock().await;
+                            rooms_guard
+                                .iter()
+                                .find(|r| r.room_name == room_name)
+                                .map(|r| r.room_clients.values().cloned().collect::<Vec<_>>())
+                        };
+                        if let Some(recipients) = recipients {
+                            for h in recipients {
+                                if h.id == client_id {
+                                    continue;
+                                } else {
+                                    if let Err(e) = h.send_binary(bytes.clone()).await {
+                                        eprintln!("Failed to send binary to client: {}", e);
+                                    }
+                                }
+                            }
+                        } else {
+                            println!("Room not found: {}", room_name);
+                        }
+                    }
+                    RoomEvents::EmitTextMessage {
                         client_id: _,
                         room_name,
                         text,
@@ -549,7 +604,7 @@ impl Wynd<TcpStream> {
                             }
                         }
                     }
-                    RoomEvents::BinaryMessage {
+                    RoomEvents::EmitBinaryMessage {
                         client_id: _,
                         room_name,
                         bytes,
@@ -571,6 +626,7 @@ impl Wynd<TcpStream> {
                             println!("Room not found: {}", room_name);
                         }
                     }
+
                     RoomEvents::LeaveRoom {
                         client_id,
                         room_name,
