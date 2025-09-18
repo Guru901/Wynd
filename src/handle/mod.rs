@@ -8,7 +8,7 @@ use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
 use crate::{
     conn::{ConnState, Connection},
-    types::Rooms,
+    types::RoomEvents,
 };
 
 #[derive(Debug)]
@@ -31,6 +31,24 @@ where
     pub broadcast: Broadcaster<T>,
 
     pub(crate) state: Arc<Mutex<ConnState>>,
+
+    pub(crate) room_sender: tokio::sync::mpsc::Sender<RoomEvents<T>>,
+}
+
+impl<T> Clone for ConnectionHandle<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
+{
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            writer: self.writer.clone(),
+            addr: self.addr,
+            broadcast: self.broadcast.clone(),
+            state: self.state.clone(),
+            room_sender: self.room_sender.clone(),
+        }
+    }
 }
 
 impl<T> ConnectionHandle<T>
@@ -169,6 +187,15 @@ where
     }
 
     pub async fn join(&self, room: &str) -> Result<(), ()> {
+        self.room_sender
+            .send(RoomEvents::JoinRoom {
+                client_id: self.id,
+                handle: self.clone(),
+                room_name: room.to_string(),
+            })
+            .await
+            .unwrap();
+
         Ok(())
     }
 
@@ -176,8 +203,15 @@ where
         Ok(())
     }
 
-    pub fn to(&self, room: &str) -> Rooms<T> {
-        Rooms::<T>::new()
+    pub async fn send_text_to_room(&self, room: &str, text: String) {
+        self.room_sender
+            .send(RoomEvents::TextMessage {
+                client_id: self.id,
+                room_name: room.to_string(),
+                text,
+            })
+            .await
+            .unwrap();
     }
 
     /// Sends binary data to the client.
@@ -284,6 +318,18 @@ where
     pub(crate) current_client_id: u64,
     /// Shared registry of all active connections and their handles.
     pub(crate) clients: Arc<Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
+}
+
+impl<T> Clone for Broadcaster<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
+{
+    fn clone(&self) -> Self {
+        Self {
+            current_client_id: self.current_client_id,
+            clients: self.clients.clone(),
+        }
+    }
 }
 
 impl<T> Broadcaster<T>

@@ -54,6 +54,7 @@ use futures::lock::Mutex;
 use hyper_tungstenite::hyper;
 use tokio::io::{AsyncRead, AsyncWrite};
 
+use std::collections::HashMap;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -66,7 +67,7 @@ use tokio_tungstenite::accept_async;
 
 use crate::conn::Connection;
 use crate::handle::{Broadcaster, ConnectionHandle};
-use crate::types::{Rooms, WyndError};
+use crate::types::{Room, RoomEvents, WyndError};
 use std::fmt::Debug;
 
 /// Type alias for connection ID counter.
@@ -164,7 +165,11 @@ where
     ///
     /// Rooms allow multiple connections to participate in group communication.
     /// Protected by a tokio Mutex for thread-safe access.
-    pub rooms: Arc<tokio::sync::Mutex<Vec<Rooms<T>>>>,
+    pub rooms: Arc<tokio::sync::Mutex<Vec<Room<T>>>>,
+
+    /// Channel for receiving room events from all connections.
+    /// This is used by the room event processor task.
+    room_sender: tokio::sync::mpsc::Sender<RoomEvents<T>>,
 }
 
 impl<T> Debug for Wynd<T>
@@ -236,6 +241,7 @@ where
             clients: Arc::new(tokio::sync::Mutex::new(Vec::new())),
             addr: SocketAddr::from(([0, 0, 0, 0], 8080)),
             rooms: Arc::new(tokio::sync::Mutex::new(Vec::new())),
+            room_sender: tokio::sync::mpsc::channel(100).0,
         }
     }
 
@@ -416,6 +422,7 @@ where
             addr: addr,
             broadcast: broadcaster,
             state: Arc::clone(&connection.state),
+            room_sender: self.room_sender.clone(),
         });
 
         let arc_connection = Arc::new(connection);
@@ -431,12 +438,23 @@ where
         // Remove this connection from the registry when it closes
         {
             let clients_registry = Arc::clone(&self.clients);
+            let rooms_registry = Arc::clone(&self.rooms);
             let handle_id = handle.id();
             arc_connection.on_close(move |_event| {
                 let clients_registry = Arc::clone(&clients_registry);
+                let rooms_registry = Arc::clone(&rooms_registry);
                 async move {
+                    // Remove from clients registry
                     let mut clients = clients_registry.lock().await;
                     clients.retain(|(_c, h)| h.id() != handle_id);
+
+                    // Remove from all rooms
+                    let mut rooms = rooms_registry.lock().await;
+                    for room in rooms.iter_mut() {
+                        room.room_clients.remove(&handle_id);
+                    }
+                    // Remove empty rooms
+                    rooms.retain(|room| !room.room_clients.is_empty());
                 }
             });
         }
@@ -453,6 +471,8 @@ where
             handler(arc_connection).await;
         }
 
+        // The connection is now set up and will be managed by its own message loop
+        // No blocking loop here - each connection runs independently
         Ok(())
     }
 }
@@ -474,6 +494,95 @@ impl Wynd<TcpStream> {
         let addr = format!("127.0.0.1:{}", port);
         let listener = TcpListener::bind(&addr).await?;
         self.addr = listener.local_addr().unwrap();
+
+        // Create the room event processor channel
+        let (room_sender, mut room_receiver) =
+            tokio::sync::mpsc::channel::<RoomEvents<TcpStream>>(100);
+        self.room_sender = room_sender;
+
+        // Spawn the room event processor task
+        let rooms = Arc::clone(&self.rooms);
+        tokio::spawn(async move {
+            while let Some(room_data) = room_receiver.recv().await {
+                println!("room data: {:?}", room_data);
+                println!("rooms: {:?}", rooms);
+                match room_data {
+                    RoomEvents::JoinRoom {
+                        client_id,
+                        handle,
+                        room_name,
+                    } => {
+                        let mut rooms = rooms.lock().await;
+                        let maybe_room = rooms.iter_mut().find(|room| room.room_name == room_name);
+
+                        if let Some(room) = maybe_room {
+                            room.room_clients.insert(client_id, handle);
+                        } else {
+                            let room = Room {
+                                room_clients: HashMap::from([(client_id, handle)]),
+                                room_name,
+                                room_id: 0,
+                            };
+                            rooms.push(room);
+                        }
+                    }
+                    RoomEvents::TextMessage {
+                        client_id: _,
+                        room_name,
+                        text,
+                    } => {
+                        let mut rooms = rooms.lock().await;
+                        let room = rooms.iter_mut().find(|room| room.room_name == room_name);
+
+                        if let Some(room) = room {
+                            // Send the text message to all clients in the room, sequentially
+                            for (_, client) in room.room_clients.iter() {
+                                if let Err(e) = client.send_text(&text).await {
+                                    eprintln!("Failed to send text to client: {}", e);
+                                }
+                            }
+                        } else {
+                            println!("Room not found: {}", room_name);
+                        }
+                    }
+                    RoomEvents::BinaryMessage {
+                        client_id: _,
+                        room_name,
+                        bytes,
+                    } => {
+                        let mut rooms = rooms.lock().await;
+                        let room = rooms.iter_mut().find(|room| room.room_name == room_name);
+
+                        if let Some(room) = room {
+                            // Send the binary message to all clients in the room, sequentially
+                            for (_, client) in room.room_clients.iter() {
+                                if let Err(e) = client.send_binary(bytes.clone()).await {
+                                    eprintln!("Failed to send binary to client: {}", e);
+                                }
+                            }
+                        } else {
+                            println!("Room not found: {}", room_name);
+                        }
+                    }
+                    RoomEvents::LeaveRoom {
+                        client_id,
+                        room_name,
+                        handle: _,
+                    } => {
+                        let mut rooms = rooms.lock().await;
+                        if let Some(room) =
+                            rooms.iter_mut().find(|room| room.room_name == room_name)
+                        {
+                            room.room_clients.remove(&client_id);
+                            // Remove empty rooms
+                            if room.room_clients.is_empty() {
+                                rooms.retain(|r| r.room_name != room_name);
+                            }
+                        }
+                    }
+                }
+            }
+        });
 
         // Call the listening callback
         on_listening();

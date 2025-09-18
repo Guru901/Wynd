@@ -4,11 +4,12 @@ use std::{
     collections::HashMap,
     fmt::{Debug, Display},
     ops::Deref,
+    sync::Arc,
 };
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::handle::ConnectionHandle;
+use crate::{conn::Connection, handle::ConnectionHandle};
 
 /// Represents a text message event received from a WebSocket client.
 ///
@@ -340,20 +341,24 @@ impl Display for WyndError {
 impl std::error::Error for WyndError {}
 
 #[derive(Debug)]
-pub struct Rooms<T>
+pub struct Room<T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Debug + 'static,
 {
-    pub(crate) room_clients: HashMap<String, ConnectionHandle<T>>,
+    pub(crate) room_clients: HashMap<u64, ConnectionHandle<T>>,
+    pub(crate) room_name: String,
+    pub(crate) room_id: u64,
 }
 
-impl<T> Rooms<T>
+impl<T> Room<T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Debug + 'static,
 {
     pub fn new() -> Self {
         Self {
             room_clients: HashMap::new(),
+            room_name: String::new(),
+            room_id: 0,
         }
     }
 
@@ -372,4 +377,34 @@ where
             };
         });
     }
+}
+
+#[derive(Debug)]
+pub enum RoomEvents<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
+{
+    JoinRoom {
+        client_id: u64,
+        handle: ConnectionHandle<T>,
+        room_name: String,
+    },
+
+    TextMessage {
+        client_id: u64,
+        room_name: String,
+        text: String,
+    },
+
+    BinaryMessage {
+        client_id: u64,
+        room_name: String,
+        bytes: Vec<u8>,
+    },
+
+    LeaveRoom {
+        client_id: u64,
+        handle: ConnectionHandle<T>,
+        room_name: String,
+    },
 }

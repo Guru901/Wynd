@@ -132,6 +132,7 @@ mod tests {
                 current_client_id: 123,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
+            room_sender: tokio::sync::mpsc::channel(100).0,
         };
 
         assert_eq!(handle.id(), 123);
@@ -220,6 +221,7 @@ mod tests {
                 current_client_id: 123,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
+            room_sender: tokio::sync::mpsc::channel(100).0,
         };
 
         // In a real test environment, you'd verify the message was actually sent
@@ -251,6 +253,7 @@ mod tests {
                 current_client_id: 1,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
+            room_sender: tokio::sync::mpsc::channel(100).0,
         };
 
         let data = vec![1, 2, 3, 4, 5];
@@ -281,6 +284,7 @@ mod tests {
                 current_client_id: 1,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
+            room_sender: tokio::sync::mpsc::channel(100).0,
         };
 
         let _result = handle.close().await;
@@ -309,6 +313,7 @@ mod tests {
                 current_client_id: 1,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
+            room_sender: tokio::sync::mpsc::channel(100).0,
         });
 
         // Test concurrent sending from multiple tasks
@@ -389,6 +394,7 @@ mod tests {
                 current_client_id: 1,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
+            room_sender: tokio::sync::mpsc::channel(100).0,
         };
 
         // Test sending to a potentially closed connection
