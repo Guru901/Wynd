@@ -252,7 +252,10 @@ All Wynd types are designed to be thread-safe:
 
 ## Broadcasting
 
-Use `ConnectionHandle::broadcast` to send messages to other clients:
+Use `ConnectionHandle::broadcast` to send messages to other clients. The broadcaster exposes two sets of helpers:
+
+- `text(...)` / `binary(...)` — send to all clients except the current one
+- `emit_text(...)` / `emit_binary(...)` — send to all clients including the current one
 
 ```rust
 conn.on_text(|msg, handle| async move {
@@ -261,7 +264,31 @@ conn.on_text(|msg, handle| async move {
 
     // Broadcast to others
     handle.broadcast.text(&msg.data).await;
+
+    // Or to everyone including the sender
+    handle.broadcast.emit_text(&msg.data).await;
 });
+```
+
+### `handle::Broadcaster<T>`
+
+Broadcast helper tied to a specific connection for convenience.
+
+#### Methods
+
+- `text(text: &str) -> ()` — Broadcast a UTF-8 message to all other clients (excludes sender)
+- `binary(bytes: &[u8]) -> ()` — Broadcast a binary payload to all other clients (excludes sender)
+- `emit_text(text: &str) -> ()` — Broadcast a UTF-8 message to all clients (includes sender)
+- `emit_binary(bytes: &[u8]) -> ()` — Broadcast a binary payload to all clients (includes sender)
+
+#### Example
+
+```rust
+// From inside a message handler
+handle.broadcast.emit_text("Server maintenance in 5 minutes").await;
+
+let img: Vec<u8> = vec![/* ... */];
+handle.broadcast.emit_binary(&img).await;
 ```
 
 ## Performance Considerations
