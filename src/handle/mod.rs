@@ -243,7 +243,12 @@ where
                 room_name: room.to_string(),
             })
             .await
-            .map_err(|e| format!("Failed to join room: {}", e))?;
+            .map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to join room: {}", e),
+                )
+            })?;
 
         Ok(())
     }
@@ -263,7 +268,12 @@ where
                 room_name: room.to_string(),
             })
             .await
-            .map_err(|e| format!("Failed to leave room: {}", e))?;
+            .map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to leave room: {}", e),
+                )
+            })?;
 
         Ok(())
     }
@@ -288,7 +298,12 @@ where
                 text,
             })
             .await
-            .map_err(|e| format!("Failed to send text to room: {}", e))?;
+            .map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to send text to room: {}", e),
+                )
+            })?;
         Ok(())
     }
 
@@ -312,7 +327,12 @@ where
                 bytes: bytes.into(),
             })
             .await
-            .map_err(|e| format!("Failed to send text to room: {}", e))?;
+            .map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to send text to room: {}", e),
+                )
+            })?;
         Ok(())
     }
 
