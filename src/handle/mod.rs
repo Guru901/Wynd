@@ -211,7 +211,11 @@ where
         Ok(())
     }
 
-    pub async fn send_text_to_room(&self, room: &str, text: String) {
+    pub async fn send_text_to_room(
+        &self,
+        room: &str,
+        text: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.room_sender
             .send(RoomEvents::TextMessage {
                 client_id: self.id,
@@ -219,7 +223,8 @@ where
                 text,
             })
             .await
-            .unwrap();
+            .map_err(|e| format!("Failed to send text to room: {}", e))?;
+        Ok(())
     }
 
     /// Sends binary data to the client.

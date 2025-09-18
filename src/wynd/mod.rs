@@ -499,7 +499,6 @@ impl Wynd<TcpStream> {
         let (room_sender, mut room_receiver) =
             tokio::sync::mpsc::channel::<RoomEvents<TcpStream>>(100);
         self.room_sender = room_sender;
-
         // Spawn the room event processor task
         let rooms = Arc::clone(&self.rooms);
         tokio::spawn(async move {
@@ -514,7 +513,6 @@ impl Wynd<TcpStream> {
                     } => {
                         let mut rooms = rooms.lock().await;
                         let maybe_room = rooms.iter_mut().find(|room| room.room_name == room_name);
-
                         if let Some(room) = maybe_room {
                             room.room_clients.insert(client_id, handle);
                         } else {
@@ -530,18 +528,24 @@ impl Wynd<TcpStream> {
                         room_name,
                         text,
                     } => {
-                        let mut rooms = rooms.lock().await;
-                        let room = rooms.iter_mut().find(|room| room.room_name == room_name);
-
-                        if let Some(room) = room {
-                            // Send the text message to all clients in the room, sequentially
-                            for (_, client) in room.room_clients.iter() {
-                                if let Err(e) = client.send_text(&text).await {
+                        let handles: Vec<_> = {
+                            let rooms_guard = rooms.lock().await;
+                            if let Some(room) =
+                                rooms_guard.iter().find(|r| r.room_name == room_name)
+                            {
+                                room.room_clients.values().cloned().collect()
+                            } else {
+                                Vec::new()
+                            }
+                        };
+                        if handles.is_empty() {
+                            eprintln!("Room not found: {}", room_name);
+                        } else {
+                            for h in handles {
+                                if let Err(e) = h.send_text(&text).await {
                                     eprintln!("Failed to send text to client: {}", e);
                                 }
                             }
-                        } else {
-                            println!("Room not found: {}", room_name);
                         }
                     }
                     RoomEvents::BinaryMessage {
@@ -549,18 +553,24 @@ impl Wynd<TcpStream> {
                         room_name,
                         bytes,
                     } => {
-                        let mut rooms = rooms.lock().await;
-                        let room = rooms.iter_mut().find(|room| room.room_name == room_name);
-
-                        if let Some(room) = room {
-                            // Send the binary message to all clients in the room, sequentially
-                            for (_, client) in room.room_clients.iter() {
-                                if let Err(e) = client.send_binary(bytes.clone()).await {
+                        let handles: Vec<_> = {
+                            let rooms_guard = rooms.lock().await;
+                            if let Some(room) =
+                                rooms_guard.iter().find(|r| r.room_name == room_name)
+                            {
+                                room.room_clients.values().cloned().collect()
+                            } else {
+                                Vec::new()
+                            }
+                        };
+                        if handles.is_empty() {
+                            eprintln!("Room not found: {}", room_name);
+                        } else {
+                            for h in handles {
+                                if let Err(e) = h.send_binary(bytes.clone()).await {
                                     eprintln!("Failed to send binary to client: {}", e);
                                 }
                             }
-                        } else {
-                            println!("Room not found: {}", room_name);
                         }
                     }
                     RoomEvents::LeaveRoom {
@@ -581,7 +591,6 @@ impl Wynd<TcpStream> {
                 }
             }
         });
-
         // Call the listening callback
         on_listening();
 
