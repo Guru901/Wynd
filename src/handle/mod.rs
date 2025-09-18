@@ -270,8 +270,7 @@ where
 
     /// Sends a text message to all members of a room.
     ///
-    /// This does not send back to the caller unless the underlying
-    /// room handler includes the sender.
+    /// This does not send back to the caller.
     ///
     /// - `room`: The target room name.
     /// - `text`: The UTF-8 message to broadcast.
@@ -287,6 +286,30 @@ where
                 client_id: self.id,
                 room_name: room.to_string(),
                 text,
+            })
+            .await
+            .map_err(|e| format!("Failed to send text to room: {}", e))?;
+        Ok(())
+    }
+
+    /// Sends a binary message to all members of a room.
+    ///
+    /// This does not send back to the caller.
+    ///
+    /// - `room`: The target room name.
+    /// - `bytes`: The binary message to broadcast.
+    ///
+    /// Returns `Ok(())` if the broadcast request was sent, otherwise an error.
+    pub async fn send_binary_to_room(
+        &self,
+        room: &str,
+        bytes: &[u8],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.room_sender
+            .send(RoomEvents::BinaryMessage {
+                client_id: self.id,
+                room_name: room.to_string(),
+                bytes: bytes.into(),
             })
             .await
             .map_err(|e| format!("Failed to send text to room: {}", e))?;
