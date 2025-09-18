@@ -553,24 +553,21 @@ impl Wynd<TcpStream> {
                         room_name,
                         bytes,
                     } => {
-                        let handles: Vec<_> = {
+                        let recipients = {
                             let rooms_guard = rooms.lock().await;
-                            if let Some(room) =
-                                rooms_guard.iter().find(|r| r.room_name == room_name)
-                            {
-                                room.room_clients.values().cloned().collect()
-                            } else {
-                                Vec::new()
-                            }
+                            rooms_guard
+                                .iter()
+                                .find(|r| r.room_name == room_name)
+                                .map(|r| r.room_clients.values().cloned().collect::<Vec<_>>())
                         };
-                        if handles.is_empty() {
-                            eprintln!("Room not found: {}", room_name);
-                        } else {
-                            for h in handles {
+                        if let Some(recipients) = recipients {
+                            for h in recipients {
                                 if let Err(e) = h.send_binary(bytes.clone()).await {
                                     eprintln!("Failed to send binary to client: {}", e);
                                 }
                             }
+                        } else {
+                            println!("Room not found: {}", room_name);
                         }
                     }
                     RoomEvents::LeaveRoom {
