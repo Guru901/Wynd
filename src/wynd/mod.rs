@@ -531,13 +531,16 @@ impl Wynd<TcpStream> {
                         room_name,
                         text,
                     } => {
-                        let mut rooms = rooms.lock().await;
-                        let room = rooms.iter_mut().find(|room| room.room_name == room_name);
-
-                        if let Some(room) = room {
-                            // Send the text message to all clients in the room, sequentially
-                            for (_, client) in room.room_clients.iter() {
-                                if let Err(e) = client.send_text(&text).await {
+                        let recipients = {
+                            let rooms_guard = rooms.lock().await;
+                            rooms_guard
+                                .iter()
+                                .find(|r| r.room_name == room_name)
+                                .map(|r| r.room_clients.values().cloned().collect::<Vec<_>>())
+                        };
+                        if let Some(recipients) = recipients {
+                            for h in recipients {
+                                if let Err(e) = h.send_text(&text).await {
                                     eprintln!("Failed to send text to client: {}", e);
                                 }
                             }
