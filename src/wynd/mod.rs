@@ -671,19 +671,17 @@ impl Wynd<TcpStream> {
                         }
                     }
 
-                    RoomEvents::LeaveRoom {
-                        client_id,
-                        room_name,
                     } => {
-                        let mut rooms = rooms.lock().await;
+                        let mut rooms_guard = rooms.lock().await;
+                        let mut remove_room = false;
                         if let Some(room) =
-                            rooms.iter_mut().find(|room| room.room_name == room_name)
+                            rooms_guard.iter_mut().find(|room| room.room_name == room_name)
                         {
                             room.room_clients.remove(&client_id);
-                            // Remove empty rooms
-                            if room.room_clients.is_empty() {
-                                rooms.retain(|r| r.room_name != room_name);
-                            }
+                            remove_room = room.room_clients.is_empty();
+                        }
+                        if remove_room {
+                            rooms_guard.retain(|r| r.room_name != room_name);
                         }
                     }
                 }
