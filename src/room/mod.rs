@@ -176,7 +176,7 @@ where
 
     pub async fn binary(&self, bytes: &[u8]) -> Result<(), std::io::Error> {
         self.room_sender
-            .send(RoomEvents::EmitBinaryMessage {
+            .send(RoomEvents::BinaryMessage {
                 client_id: self.id,
                 room_name: self.room_name.clone(),
                 bytes: bytes.into(),
@@ -193,7 +193,7 @@ where
 
     pub async fn emit_binary(&self, bytes: &[u8]) -> Result<(), std::io::Error> {
         self.room_sender
-            .send(RoomEvents::BinaryMessage {
+            .send(RoomEvents::EmitBinaryMessage {
                 client_id: self.id,
                 room_name: self.room_name.clone(),
                 bytes: bytes.into(),
