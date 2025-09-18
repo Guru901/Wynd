@@ -61,8 +61,8 @@ use tokio::{
 use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
 use crate::{
-    handle::ConnectionHandle,
-    types::{BinaryMessageEvent, CloseEvent, TextMessageEvent},
+    handle::{Broadcaster, ConnectionHandle},
+    types::{BinaryMessageEvent, CloseEvent, TextMessageEvent, RoomEvents},
     wynd::BoxFuture,
 };
 
