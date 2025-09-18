@@ -1,13 +1,16 @@
 // Global type definitions for WebSocket test environment
 
+import type { Data } from "ws";
+import type WebSocket from "ws";
+
 declare global {
   interface Window {
     // WebSocket connection instance
     testWs?: WebSocket;
 
     // Message storage arrays
-    wsMessages?: string[];
-    binaryMessages?: ArrayBuffer[];
+    wsMessages?: Data[];
+    binaryMessages?: Data[];
 
     // Connection state flags
     wsConnected?: boolean;
@@ -54,6 +57,14 @@ declare global {
     wsConnected?: boolean;
     messageCount?: number;
     lastMessageTime?: number;
+
+    // CI-safe WebSocket constants shape for Node test runner
+    WebSocket?: {
+      CONNECTING: 0;
+      OPEN: 1;
+      CLOSING: 2;
+      CLOSED: 3;
+    };
   }
 }
 
