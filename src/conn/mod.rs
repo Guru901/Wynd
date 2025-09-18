@@ -484,14 +484,24 @@ where
         > = self.open_handler.lock().await;
         *open_handler = Some(Box::new(move |handle| Box::pin(handler(handle))));
 
-        // Get the existing handle that was set during connection setup
-        // If no handle is set (e.g., in tests), create a temporary one
+        // Acquire or synthesize a handle if not set (e.g., in tests)
         let handle = {
-            let h = self.handle.lock().await;
-            if let Some(handle) = h.clone() {
-                handle
+            if let Some(h) = self.handle.lock().await.clone() {
+                h
             } else {
-                panic!("No handle set for connection {}", self.id);
+                // Fallback handle uses this connection's writer/state and an ephemeral room channel
+                let (tx, _rx) = tokio::sync::mpsc::channel::<crate::types::RoomEvents<T>>(1);
+                Arc::new(crate::handle::ConnectionHandle {
+                    id: self.id,
+                    writer: Arc::clone(&self.writer),
+                    addr: self.addr,
+                    broadcast: crate::handle::Broadcaster {
+                        clients: Arc::clone(&self.clients),
+                        current_client_id: self.id,
+                    },
+                    state: Arc::clone(&self.state),
+                    room_sender: tx,
+                })
             }
         };
 
