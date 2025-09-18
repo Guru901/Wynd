@@ -304,64 +304,6 @@ where
         }
     }
 
-    // /// Sends a text message to all members of a room.
-    // ///
-    // /// This does not send back to the caller.
-    // ///
-    // /// - `room`: The target room name.
-    // /// - `text`: The UTF-8 message to broadcast.
-    // ///
-    // /// Returns `Ok(())` if the broadcast request was sent, otherwise an error.
-    // pub async fn send_text_to_room(
-    //     &self,
-    //     room: &str,
-    //     text: String,
-    // ) -> Result<(), Box<dyn std::error::Error>> {
-    //     self.room_sender
-    //         .send(RoomEvents::TextMessage {
-    //             client_id: self.id,
-    //             room_name: room.to_string(),
-    //             text,
-    //         })
-    //         .await
-    //         .map_err(|e| {
-    //             std::io::Error::new(
-    //                 std::io::ErrorKind::Other,
-    //                 format!("Failed to send text to room: {}", e),
-    //             )
-    //         })?;
-    //     Ok(())
-    // }
-
-    // /// Sends a binary message to all members of a room.
-    // ///
-    // /// This does not send back to the caller.
-    // ///
-    // /// - `room`: The target room name.
-    // /// - `bytes`: The binary message to broadcast.
-    // ///
-    // /// Returns `Ok(())` if the broadcast request was sent, otherwise an error.
-    // pub async fn send_binary_to_room(
-    //     &self,
-    //     room: &str,
-    //     bytes: &[u8],
-    // ) -> Result<(), Box<dyn std::error::Error>> {
-    //     self.room_sender
-    //         .send(RoomEvents::BinaryMessage {
-    //             client_id: self.id,
-    //             room_name: room.to_string(),
-    //             bytes: bytes.into(),
-    //         })
-    //         .await
-    //         .map_err(|e| {
-    //             std::io::Error::new(
-    //                 std::io::ErrorKind::Other,
-    //                 format!("Failed to send text to room: {}", e),
-    //             )
-    //         })?;
-    //     Ok(())
-    // }
-
     /// Sends binary data to the client.
     ///
     /// This method sends binary data to the WebSocket client.
