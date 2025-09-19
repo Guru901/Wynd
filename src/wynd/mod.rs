@@ -49,10 +49,10 @@
 //! }
 //! ```
 
-use futures::lock::Mutex;
 #[cfg(feature = "with-ripress")]
 use hyper_tungstenite::hyper;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::sync::Mutex;
 
 use std::collections::HashMap;
 use std::future::Future;
