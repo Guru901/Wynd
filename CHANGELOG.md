@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.8.0] - 2025-09-19
+
+### New Features
+
+- Room-based Messaging System
+  - Added `Room<T>` struct for managing client groups with text and binary broadcasting
+  - Introduced `RoomEvents<T>` enum for join, leave, and messaging coordination
+  - Added `RoomMethods<T>` helper for room-specific event sending
+- Connection Handle Management
+  - Added `ConnectionHandle<T>` with room integration
+  - `join(room)` and `leave(room)` support
+  - Enhanced lifecycle with per-connection handle storage
+
+### 🛠️ Improvements
+
+- WebSocket Integration
+  - Centralized WebSocket handling with `handle_websocket_connection()`
+  - Proper handle binding during connection lifecycle
+  - Added room event processing for TCP and WebSocket
+- Integration Tests
+- Error Handling & Reliability
+
+### Fixed
+
+- ConnectionHandle being created twice
+
 ## [0.7.0] - 2025-09-18
 
 - Added `broadcast.emit_text` and `broadcast.emit_binary` functions that broadcast to all clients (also the current one)
