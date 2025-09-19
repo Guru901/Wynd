@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e  # Exit on error
+set -euo pipefail  # Exit on error, undefined var is error, fail on pipeline errors
 
 cargo test --all  # Run Rust tests
 
@@ -45,19 +45,36 @@ async fn main() {
 cargo run &  # Start server in background
 SERVER_PID=$!  # Store server process ID
 
-sleep 20
+# Ensure the server is cleaned up on script exit
+cleanup() {
+  if kill -0 "$SERVER_PID" >/dev/null 2>&1; then
+    kill "$SERVER_PID" || true
+  fi
+}
+trap cleanup EXIT
+
+# Wait until port 3000 is accepting connections (max ~60s)
+for i in {1..60}; do
+  if nc -z localhost 3000 >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+# Final check to ensure the port is open
+if ! nc -z localhost 3000 >/dev/null 2>&1; then
+  echo "Server did not start listening on port 3000 in time" >&2
+  exit 1
+fi
 
 cd ../tests
 bun install
 
 # Run Playwright tests, fail script if tests fail
 bunx playwright test || {
-  echo "Playwright tests failed"
-  kill $SERVER_PID
+  echo "Playwright tests failed" >&2
   exit 1
 }
-
-kill $SERVER_PID  # Stop the server
 
 cd ../src
 rm main.rs

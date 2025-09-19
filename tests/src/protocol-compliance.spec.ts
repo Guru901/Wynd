@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { WS_URL } from "./shared";
+import { WebSocket } from "ws";
 
 test.describe("WebSocket Protocol Compliance Tests", () => {
   test.beforeAll(async () => {
@@ -311,7 +312,7 @@ test.describe("WebSocket Protocol Compliance Tests", () => {
 
     const messages = await page.evaluate(() => window.wsMessages);
     expect(messages![0]).toBe(largeMessage);
-    expect(messages![0]!.length).toBe(65536);
+    expect(messages![0]!.toString().length).toBe(65536);
   });
 
   test("should handle WebSocket control frames", async ({ page }) => {

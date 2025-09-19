@@ -49,11 +49,12 @@
 //! }
 //! ```
 
-use futures::lock::Mutex;
 #[cfg(feature = "with-ripress")]
 use hyper_tungstenite::hyper;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::sync::Mutex;
 
+use std::collections::HashMap;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -64,7 +65,9 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 use tokio_tungstenite::accept_async;
 
-use crate::conn::{Broadcaster, Connection, ConnectionHandle};
+use crate::conn::Connection;
+use crate::handle::{Broadcaster, ConnectionHandle};
+use crate::room::{Room, RoomEvents};
 use crate::types::WyndError;
 use std::fmt::Debug;
 
@@ -119,6 +122,7 @@ pub(crate) type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>
 ///     });
 /// }
 /// ```
+
 pub struct Wynd<T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
@@ -128,15 +132,17 @@ where
     /// This handler is called whenever a new WebSocket connection is established.
     /// It receives a `Connection` instance that can be used to set up event handlers.
     pub(crate) connection_handler:
-        Option<Box<dyn Fn(Arc<Connection<T>>) -> BoxFuture<()> + Send + Sync>>,
+        Option<Box<dyn Fn(Arc<Connection<T>>) -> BoxFuture<()> + Send + Sync + 'static>>,
 
+    /// The address the server is listening on.
     pub(crate) addr: SocketAddr,
 
     /// Handler for server-level errors.
     ///
     /// This handler is called when server-level errors occur, such as
     /// connection acceptance failures or WebSocket handshake errors.
-    pub(crate) error_handler: Option<Box<dyn Fn(WyndError) -> BoxFuture<()> + Send + Sync>>,
+    pub(crate) error_handler:
+        Option<Box<dyn Fn(WyndError) -> BoxFuture<()> + Send + Sync + 'static>>,
 
     /// Handler for server shutdown.
     ///
@@ -156,6 +162,31 @@ where
     /// Connections are added when established and should be removed when closed.
     /// Protected by a tokio Mutex for thread-safe access.
     pub clients: Arc<tokio::sync::Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
+    /// Registry of active rooms for group messaging.
+    ///
+    /// Rooms allow multiple connections to participate in group communication.
+    /// Protected by a tokio Mutex for thread-safe access.
+    pub rooms: Arc<tokio::sync::Mutex<Vec<Room<T>>>>,
+
+    /// Channel for receiving room events from all connections.
+    /// This is used by the room event processor task.
+    room_sender: tokio::sync::mpsc::Sender<RoomEvents<T>>,
+}
+
+impl<T> Debug for Wynd<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Wynd").finish()
+    }
+}
+
+#[cfg(feature = "with-ripress")]
+impl Debug for Wynd<WithRipress> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Wynd").finish()
+    }
 }
 
 /// Tells the library which type to use for the server.
@@ -210,6 +241,8 @@ where
             next_connection_id: ConnectionId::new(0),
             clients: Arc::new(tokio::sync::Mutex::new(Vec::new())),
             addr: SocketAddr::from(([0, 0, 0, 0], 8080)),
+            rooms: Arc::new(tokio::sync::Mutex::new(Vec::new())),
+            room_sender: tokio::sync::mpsc::channel(100).0,
         }
     }
 
@@ -390,9 +423,13 @@ where
             addr: addr,
             broadcast: broadcaster,
             state: Arc::clone(&connection.state),
+            room_sender: self.room_sender.clone(),
         });
 
         let arc_connection = Arc::new(connection);
+
+        // Set the handle on the connection so it can be used in on_open
+        arc_connection.set_handle(Arc::clone(&handle)).await;
 
         {
             let mut clients = self.clients.lock().await;
@@ -402,12 +439,23 @@ where
         // Remove this connection from the registry when it closes
         {
             let clients_registry = Arc::clone(&self.clients);
+            let rooms_registry = Arc::clone(&self.rooms);
             let handle_id = handle.id();
             arc_connection.on_close(move |_event| {
                 let clients_registry = Arc::clone(&clients_registry);
+                let rooms_registry = Arc::clone(&rooms_registry);
                 async move {
+                    // Remove from clients registry
                     let mut clients = clients_registry.lock().await;
                     clients.retain(|(_c, h)| h.id() != handle_id);
+
+                    // Remove from all rooms
+                    let mut rooms = rooms_registry.lock().await;
+                    for room in rooms.iter_mut() {
+                        room.room_clients.remove(&handle_id);
+                    }
+                    // Remove empty rooms
+                    rooms.retain(|room| !room.room_clients.is_empty());
                 }
             });
         }
@@ -424,6 +472,8 @@ where
             handler(arc_connection).await;
         }
 
+        // The connection is now set up and will be managed by its own message loop
+        // No blocking loop here - each connection runs independently
         Ok(())
     }
 }
@@ -446,6 +496,200 @@ impl Wynd<TcpStream> {
         let listener = TcpListener::bind(&addr).await?;
         self.addr = listener.local_addr().unwrap();
 
+        // Create the room event processor channel
+        let (room_sender, mut room_receiver) =
+            tokio::sync::mpsc::channel::<RoomEvents<TcpStream>>(100);
+        self.room_sender = room_sender;
+        // Spawn the room event processor task
+        let rooms = Arc::clone(&self.rooms);
+        tokio::spawn(async move {
+            while let Some(room_data) = room_receiver.recv().await {
+                match room_data {
+                    RoomEvents::JoinRoom {
+                        client_id,
+                        handle,
+                        room_name,
+                    } => {
+                        let mut rooms = rooms.lock().await;
+                        let maybe_room = rooms.iter_mut().find(|room| room.room_name == room_name);
+                        if let Some(room) = maybe_room {
+                            if room.room_clients.contains_key(&client_id) {
+                                continue;
+                            } else {
+                                room.room_clients.insert(client_id, handle);
+                            }
+                        } else {
+                            let room = Room {
+                                room_clients: HashMap::from([(client_id, handle)]),
+                                room_name,
+                            };
+
+                            rooms.push(room);
+                        }
+                    }
+                    RoomEvents::TextMessage {
+                        room_name,
+                        text,
+                        client_id,
+                    } => {
+                        let mut rooms = rooms.lock().await;
+
+                        let maybe_room = rooms.iter_mut().find(|room| room.room_name == room_name);
+
+                        if maybe_room.is_none() {
+                            return;
+                        }
+
+                        if !maybe_room.unwrap().room_clients.contains_key(&client_id) {
+                            return;
+                        }
+
+                        let handles: Vec<_> = {
+                            if let Some(room) = rooms.iter().find(|r| r.room_name == room_name) {
+                                room.room_clients.values().cloned().collect()
+                            } else {
+                                Vec::new()
+                            }
+                        };
+
+                        if handles.is_empty() {
+                            eprintln!("Room not found: {}", room_name);
+                        } else {
+                            for h in handles {
+                                if h.id == client_id {
+                                    continue;
+                                } else {
+                                    if let Err(e) = h.send_text(&text).await {
+                                        eprintln!("Failed to send text to client: {}", e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    RoomEvents::BinaryMessage {
+                        room_name,
+                        bytes,
+                        client_id,
+                    } => {
+                        let mut rooms = rooms.lock().await;
+
+                        let maybe_room = rooms.iter_mut().find(|room| room.room_name == room_name);
+
+                        if maybe_room.is_none() {
+                            return;
+                        }
+
+                        if !maybe_room.unwrap().room_clients.contains_key(&client_id) {
+                            return;
+                        }
+
+                        let recipients = {
+                            rooms
+                                .iter()
+                                .find(|r| r.room_name == room_name)
+                                .map(|r| r.room_clients.values().cloned().collect::<Vec<_>>())
+                        };
+                        if let Some(recipients) = recipients {
+                            for h in recipients {
+                                if h.id == client_id {
+                                    continue;
+                                } else {
+                                    if let Err(e) = h.send_binary(bytes.clone()).await {
+                                        eprintln!("Failed to send binary to client: {}", e);
+                                    }
+                                }
+                            }
+                        } else {
+                            println!("Room not found: {}", room_name);
+                        }
+                    }
+                    RoomEvents::EmitTextMessage {
+                        client_id,
+                        room_name,
+                        text,
+                    } => {
+                        let mut rooms = rooms.lock().await;
+
+                        let maybe_room = rooms.iter_mut().find(|room| room.room_name == room_name);
+
+                        if maybe_room.is_none() {
+                            return;
+                        }
+
+                        if !maybe_room.unwrap().room_clients.contains_key(&client_id) {
+                            return;
+                        }
+
+                        let handles: Vec<_> = {
+                            if let Some(room) = rooms.iter().find(|r| r.room_name == room_name) {
+                                room.room_clients.values().cloned().collect()
+                            } else {
+                                Vec::new()
+                            }
+                        };
+                        if handles.is_empty() {
+                            eprintln!("Room not found: {}", room_name);
+                        } else {
+                            for h in handles {
+                                if let Err(e) = h.send_text(&text).await {
+                                    eprintln!("Failed to send text to client: {}", e);
+                                }
+                            }
+                        }
+                    }
+                    RoomEvents::EmitBinaryMessage {
+                        client_id,
+                        room_name,
+                        bytes,
+                    } => {
+                        let mut rooms = rooms.lock().await;
+
+                        let maybe_room = rooms.iter_mut().find(|room| room.room_name == room_name);
+
+                        if maybe_room.is_none() {
+                            return;
+                        }
+
+                        if !maybe_room.unwrap().room_clients.contains_key(&client_id) {
+                            return;
+                        }
+
+                        let recipients = {
+                            rooms
+                                .iter()
+                                .find(|r| r.room_name == room_name)
+                                .map(|r| r.room_clients.values().cloned().collect::<Vec<_>>())
+                        };
+                        if let Some(recipients) = recipients {
+                            for h in recipients {
+                                if let Err(e) = h.send_binary(bytes.clone()).await {
+                                    eprintln!("Failed to send binary to client: {}", e);
+                                }
+                            }
+                        } else {
+                            println!("Room not found: {}", room_name);
+                        }
+                    }
+                    RoomEvents::LeaveRoom {
+                        client_id,
+                        room_name,
+                    } => {
+                        let mut rooms_guard = rooms.lock().await;
+                        let mut remove_room = false;
+                        if let Some(room) = rooms_guard
+                            .iter_mut()
+                            .find(|room| room.room_name == room_name)
+                        {
+                            room.room_clients.remove(&client_id);
+                            remove_room = room.room_clients.is_empty();
+                        }
+                        if remove_room {
+                            rooms_guard.retain(|r| r.room_name != room_name);
+                        }
+                    }
+                }
+            }
+        });
         // Call the listening callback
         on_listening();
 
@@ -582,6 +826,9 @@ impl Wynd<WithRipress> {
                                     });
 
                                     let arc_connection = Arc::new(connection);
+
+                                    // Set the handle on the connection so it can be used in on_open
+                                    arc_connection.set_handle(Arc::clone(&handle)).await;
 
                                     {
                                         let mut clients = wynd_clone.clients.lock().await;

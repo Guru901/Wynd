@@ -1,6 +1,9 @@
 #![warn(missing_docs)]
 
-use std::{fmt::Display, ops::Deref};
+use std::{
+    fmt::{Debug, Display},
+    ops::Deref,
+};
 
 /// Represents a text message event received from a WebSocket client.
 ///
