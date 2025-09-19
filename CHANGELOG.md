@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.8.1] - 2025-09-19
+
+- Fixed broken room implementation with 'with-ripress' feature
+
 ## [0.8.0] - 2025-09-19
 
 ### New Features

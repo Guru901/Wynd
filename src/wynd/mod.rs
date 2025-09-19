@@ -182,13 +182,6 @@ where
     }
 }
 
-#[cfg(feature = "with-ripress")]
-impl Debug for Wynd<WithRipress> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Wynd").finish()
-    }
-}
-
 /// Tells the library which type to use for the server.
 /// In this case you want to use wynd as a standalone lib.
 
@@ -823,6 +816,7 @@ impl Wynd<WithRipress> {
                                         addr: wynd_clone.addr,
                                         broadcast: broadcaster,
                                         state: Arc::clone(&connection.state),
+                                        room_sender: wynd_clone.room_sender.clone(),
                                     });
 
                                     let arc_connection = Arc::new(connection);
