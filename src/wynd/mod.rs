@@ -552,7 +552,7 @@ impl Wynd<TcpStream> {
                                 if h.id == client_id {
                                     continue;
                                 } else {
-                                    if let Err(e) = h.send_text(&text).await {
+                                    if let Err(e) = h.send_text(text.clone()).await {
                                         eprintln!("Failed to send text to client: {}", e);
                                     }
                                 }
@@ -624,7 +624,7 @@ impl Wynd<TcpStream> {
                             eprintln!("Room not found: {}", room_name);
                         } else {
                             for h in handles {
-                                if let Err(e) = h.send_text(&text).await {
+                                if let Err(e) = h.send_text(text.clone()).await {
                                     eprintln!("Failed to send text to client: {}", e);
                                 }
                             }

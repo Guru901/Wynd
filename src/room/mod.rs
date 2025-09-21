@@ -33,11 +33,12 @@ where
     /// Broadcast a UTF-8 text message to all clients in the room.
     pub async fn text<S>(&self, text: S)
     where
-        S: Into<String> + Copy,
+        S: Into<String>,
     {
+        let payload: String = text.into();
         let clients: Vec<ConnectionHandle<T>> = self.room_clients.values().cloned().collect();
         for h in clients {
-            if let Err(e) = h.send_text(text.into()).await {
+            if let Err(e) = h.send_text(payload.clone()).await {
                 eprintln!(
                     "room[{}] text broadcast failed to {}: {}",
                     self.room_name,

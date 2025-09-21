@@ -221,7 +221,11 @@ where
     ///     });
     /// }
     /// ```
-    pub async fn send_text(&self, text: String) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn send_text<S>(&self, text: S) -> Result<(), Box<dyn std::error::Error>>
+    where
+        S: Into<String>,
+    {
+        let text = text.into();
         let mut writer = self.writer.lock().await;
         futures::SinkExt::send(&mut *writer, Message::Text(text.into())).await?;
         Ok(())
@@ -436,13 +440,17 @@ where
     where
         S: Into<String>,
     {
-        for client in self.clients.lock().await.iter() {
-            if client.1.id == self.current_client_id {
-                continue;
-            } else {
-                if let Err(e) = client.1.send_text(text.into()).await {
-                    eprintln!("Failed to broadcast to client {}: {}", client.1.id(), e);
-                }
+        let payload: String = text.into();
+        let recipients: Vec<Arc<ConnectionHandle<T>>> = {
+            let clients = self.clients.lock().await;
+            clients
+                .iter()
+                .filter_map(|(_, h)| (h.id() != self.current_client_id).then(|| Arc::clone(h)))
+                .collect()
+        };
+        for h in recipients {
+            if let Err(e) = h.send_text(payload.clone()).await {
+                eprintln!("Failed to broadcast to client {}: {}", h.id(), e);
             }
         }
     }
@@ -450,14 +458,16 @@ where
     /// Broadcast a UTF-8 text message to every connected client.
     pub async fn emit_text<S>(&self, text: S)
     where
-        S: Into<String> + Copy,
+        S: Into<String>,
     {
+        let payload: String = text.into();
+
         let recipients: Vec<Arc<ConnectionHandle<T>>> = {
             let clients = self.clients.lock().await;
             clients.iter().map(|(_, h)| Arc::clone(h)).collect()
         };
         for h in recipients {
-            if let Err(e) = h.send_text(text.into()).await {
+            if let Err(e) = h.send_text(payload.clone()).await {
                 eprintln!("Failed to broadcast to client {}: {}", h.id(), e);
             }
         }
