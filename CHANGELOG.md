@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.8.2] - 2025-09-21
+
+- Made the send APIs easier to use
+
 ## [0.8.1] - 2025-09-19
 
 - Fixed broken room implementation with 'with-ripress' feature

@@ -1,6 +1,6 @@
 [package]
 name = "wynd"
-version = "0.8.1"
+version = "0.8.2"
 edition = "2024"
 description = "A simple websocket library for rust."
 license = "MIT"
