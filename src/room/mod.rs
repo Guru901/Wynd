@@ -31,10 +31,14 @@ where
     }
 
     /// Broadcast a UTF-8 text message to all clients in the room.
-    pub async fn text(&self, text: &str) {
+    pub async fn text<S>(&self, text: S)
+    where
+        S: Into<String>,
+    {
+        let payload: String = text.into();
         let clients: Vec<ConnectionHandle<T>> = self.room_clients.values().cloned().collect();
         for h in clients {
-            if let Err(e) = h.send_text(text).await {
+            if let Err(e) = h.send_text(payload.clone()).await {
                 eprintln!(
                     "room[{}] text broadcast failed to {}: {}",
                     self.room_name,
@@ -46,8 +50,11 @@ where
     }
 
     /// Broadcast a binary payload to all clients in the room.
-    pub async fn binary(&self, bytes: &[u8]) {
-        let payload = bytes.to_vec();
+    pub async fn binary<B>(&self, bytes: B)
+    where
+        B: Into<Vec<u8>>,
+    {
+        let payload = bytes.into();
         let clients: Vec<ConnectionHandle<T>> = self.room_clients.values().cloned().collect();
         for h in clients {
             if let Err(e) = h.send_binary(payload.clone()).await {
@@ -171,7 +178,10 @@ where
     /// # Returns
     ///
     /// * `Result<(), std::io::Error>` - Ok if the message was sent, Err otherwise.
-    pub async fn text(&self, text: &str) -> Result<(), std::io::Error> {
+    pub async fn text<S>(&self, text: S) -> Result<(), std::io::Error>
+    where
+        S: Into<String>,
+    {
         self.room_sender
             .send(RoomEvents::TextMessage {
                 client_id: self.id,
@@ -197,7 +207,10 @@ where
     /// # Returns
     ///
     /// * `Result<(), std::io::Error>` - Ok if the message was broadcast, Err otherwise.
-    pub async fn emit_text(&self, text: &str) -> Result<(), std::io::Error> {
+    pub async fn emit_text<S>(&self, text: S) -> Result<(), std::io::Error>
+    where
+        S: Into<String>,
+    {
         self.room_sender
             .send(RoomEvents::EmitTextMessage {
                 client_id: self.id,
@@ -223,7 +236,10 @@ where
     /// # Returns
     ///
     /// * `Result<(), std::io::Error>` - Ok if the message was sent, Err otherwise.
-    pub async fn binary(&self, bytes: &[u8]) -> Result<(), std::io::Error> {
+    pub async fn binary<B>(&self, bytes: B) -> Result<(), std::io::Error>
+    where
+        B: Into<Vec<u8>>,
+    {
         self.room_sender
             .send(RoomEvents::BinaryMessage {
                 client_id: self.id,
@@ -249,7 +265,10 @@ where
     /// # Returns
     ///
     /// * `Result<(), std::io::Error>` - Ok if the message was broadcast, Err otherwise.
-    pub async fn emit_binary(&self, bytes: &[u8]) -> Result<(), std::io::Error> {
+    pub async fn emit_binary<B>(&self, bytes: B) -> Result<(), std::io::Error>
+    where
+        B: Into<Vec<u8>>,
+    {
         self.room_sender
             .send(RoomEvents::EmitBinaryMessage {
                 client_id: self.id,
