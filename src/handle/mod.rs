@@ -1,3 +1,9 @@
+//! Connection handle and broadcast helpers.
+//!
+//! Provides `ConnectionHandle` for interacting with a live connection and
+//! `Broadcaster` for sending messages to multiple clients. These types are
+//! created and managed by the server and used inside connection event handlers.
+//! See `wynd::Wynd` and `conn::Connection` for where these are produced.
 use std::{fmt::Debug, net::SocketAddr, sync::Arc};
 
 use tokio::{

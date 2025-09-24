@@ -182,13 +182,16 @@ where
     }
 }
 
-/// Tells the library which type to use for the server.
-/// In this case you want to use wynd as a standalone lib.
+/// The concrete IO type when running Wynd as a standalone TCP WebSocket server.
+///
+/// This alias selects `tokio::net::TcpStream` for the server transport.
 
 pub type Standalone = TcpStream;
 
-/// Tells the library which type to use for the server.
-/// In this case you want to use wynd with ripress.
+/// The concrete IO type when integrating Wynd with `ripress`.
+///
+/// This alias selects `hyper::upgrade::Upgraded` for the server transport when
+/// the `with-ripress` feature is enabled.
 
 #[cfg(feature = "with-ripress")]
 pub type WithRipress = hyper::upgrade::Upgraded;
