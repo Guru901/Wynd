@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.8.3] - 2025-09-21
+
+- Updated the docs
+
 ## [0.8.2] - 2025-09-21
 
 - Made the send APIs easier to use
