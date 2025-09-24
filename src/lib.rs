@@ -37,11 +37,12 @@
 //!         });
 //!     });
 //!
-//!     wynd.listen(8080, || {
-//!         println!("Listening on port 8080");
-//!     })
-//!     .await
-//!     .unwrap();
+//!     wynd
+//!         .listen(8080, || {
+//!             println!("Listening on port 8080");
+//!         })
+//!         .await
+//!         .unwrap();
 //! }
 //! ```
 //!

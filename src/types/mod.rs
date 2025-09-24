@@ -1,5 +1,11 @@
 #![warn(missing_docs)]
 
+//! Core event and error types used by Wynd.
+//!
+//! Defines strongly-typed events for text, binary, and close messages, and
+//! the `WyndError` type for server-level errors. These types are consumed by
+//! public APIs in the `conn`, `handle`, and `wynd` modules.
+
 use std::{
     fmt::{Debug, Display},
     ops::Deref,

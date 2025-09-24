@@ -1,3 +1,8 @@
+//! Room management primitives and room-scoped messaging.
+//!
+//! Defines `Room`, room coordination events (`RoomEvents`), and `RoomMethods`
+//! which you obtain from `handle::ConnectionHandle::to()` to target a named
+//! room. Rooms allow grouping clients and broadcasting text/binary messages.
 use crate::handle::ConnectionHandle;
 use std::fmt::Debug;
 use std::{collections::HashMap, sync::Arc};
@@ -137,7 +142,8 @@ where
 /// Provides methods for sending messages to a specific room.
 ///
 /// `RoomMethods` allows you to send text or binary messages to all clients in a room,
-/// either including or excluding the sender. It is typically obtained via [`Handle::to()`].
+/// either including or excluding the sender. It is typically obtained via
+/// [`ConnectionHandle::to`](crate::handle::ConnectionHandle::to).
 ///
 /// # Type Parameters
 ///
