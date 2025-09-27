@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.0] - 2025-09-27
+
+- Added `handle.joined_rooms()` method
+- Added `handle.leave_all_rooms()` method
+
 ## [0.8.3] - 2025-09-21
 
 - Updated the docs
