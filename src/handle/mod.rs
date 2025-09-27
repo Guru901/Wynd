@@ -79,7 +79,9 @@ where
 
     pub(crate) state: Arc<Mutex<ConnState>>,
 
-    pub(crate) room_sender: tokio::sync::mpsc::Sender<RoomEvents<T>>,
+    pub(crate) room_sender: Arc<tokio::sync::mpsc::Sender<RoomEvents<T>>>,
+    pub(crate) response_sender: Arc<tokio::sync::mpsc::Sender<Vec<String>>>,
+    pub(crate) response_receiver: Arc<Mutex<tokio::sync::mpsc::Receiver<Vec<String>>>>,
 }
 
 impl<T> Clone for ConnectionHandle<T>
@@ -93,7 +95,9 @@ where
             addr: self.addr,
             broadcast: self.broadcast.clone(),
             state: self.state.clone(),
-            room_sender: self.room_sender.clone(),
+            room_sender: Arc::clone(&self.room_sender),
+            response_sender: Arc::clone(&self.response_sender),
+            response_receiver: Arc::clone(&self.response_receiver),
         }
     }
 }
@@ -130,6 +134,103 @@ where
     /// ```
     pub fn id(&self) -> u64 {
         self.id
+    }
+
+    /// Returns a list of room names that this connection has joined.
+    ///
+    /// This method sends a request to the room processor and waits for the response.
+    /// It returns a vector of room names that this connection is currently a member of.
+    ///
+    /// ## Returns
+    ///
+    /// Returns a `Vec<String>` containing the names of all rooms this connection has joined.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::{Wynd, Standalone};
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_open(|handle| async move {
+    ///             // Join some rooms
+    ///             let _ = handle.join("room1").await;
+    ///             let _ = handle.join("room2").await;
+    ///             
+    ///             // Get list of joined rooms
+    ///             let rooms = handle.joined_rooms().await;
+    ///             println!("Joined rooms: {:?}", rooms);
+    ///         })
+    ///         .await;
+    ///     });
+    /// }
+    /// ```
+    pub async fn joined_rooms(&self) -> Vec<String> {
+        // Send the request
+        self.room_sender
+            .send(RoomEvents::ListRooms { client_id: self.id })
+            .await
+            .map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to send list rooms request: {}", e),
+                )
+            })
+            .unwrap();
+
+        // Wait for the response
+        let mut receiver = self.response_receiver.lock().await;
+        receiver.recv().await.unwrap_or_default()
+    }
+
+    /// Leaves all rooms that this connection has joined.
+    ///
+    /// This method removes the connection from all rooms it is currently a member of.
+    /// Empty rooms will be automatically cleaned up after the connection leaves.
+    ///
+    /// ## Returns
+    ///
+    /// Returns `Ok(())` if the leave request was sent successfully, or an error
+    /// if the send operation failed.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::{Wynd, Standalone};
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_open(|handle| async move {
+    ///             // Join some rooms
+    ///             let _ = handle.join("room1").await;
+    ///             let _ = handle.join("room2").await;
+    ///             
+    ///             // Later, leave all rooms
+    ///             let _ = handle.leave_all_rooms().await;
+    ///         })
+    ///         .await;
+    ///     });
+    /// }
+    /// ```
+    pub async fn leave_all_rooms(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // Send the request
+        self.room_sender
+            .send(RoomEvents::LeaveAllRooms { client_id: self.id })
+            .await
+            .map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to leave all rooms: {}", e),
+                )
+            })?;
+
+        Ok(())
     }
 
     /// Returns the remote address of this connection.

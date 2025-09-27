@@ -90,6 +90,17 @@ where
         room_name: String,
     },
 
+    ListRooms {
+        /// Unique identifier of the client.
+        client_id: u64,
+    },
+
+    ListRoomsResponse {
+        /// Unique identifier of the client.
+        client_id: u64,
+        rooms: Vec<String>,
+    },
+
     /// Text message broadcast to a room.
     TextMessage {
         /// Sender client identifier.
@@ -136,6 +147,10 @@ where
         client_id: u64,
         /// Target room name to leave.
         room_name: String,
+    },
+
+    LeaveAllRooms {
+        client_id: u64,
     },
 }
 
