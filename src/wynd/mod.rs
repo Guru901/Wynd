@@ -170,7 +170,8 @@ where
 
     /// Channel for receiving room events from all connections.
     /// This is used by the room event processor task.
-    room_sender: tokio::sync::mpsc::Sender<RoomEvents<T>>,
+    room_sender: Arc<tokio::sync::mpsc::Sender<RoomEvents<T>>>,
+    _room_receiver: Arc<Mutex<tokio::sync::mpsc::Receiver<RoomEvents<T>>>>,
 }
 
 impl<T> Debug for Wynd<T>
@@ -230,6 +231,8 @@ where
     /// let mut wynd: Wynd<Standalone> = Wynd::new();
     /// ```
     pub fn new() -> Self {
+        let (room_sender, room_receiver) = tokio::sync::mpsc::channel(100);
+
         Self {
             connection_handler: None,
             error_handler: None,
@@ -238,7 +241,8 @@ where
             clients: Arc::new(tokio::sync::Mutex::new(Vec::new())),
             addr: SocketAddr::from(([0, 0, 0, 0], 8080)),
             rooms: Arc::new(tokio::sync::Mutex::new(Vec::new())),
-            room_sender: tokio::sync::mpsc::channel(100).0,
+            room_sender: Arc::new(room_sender),
+            _room_receiver: Arc::new(Mutex::new(room_receiver)),
         }
     }
 
@@ -413,13 +417,18 @@ where
             current_client_id: connection_id,
         };
 
+        // Create a dedicated response channel for this connection
+        let (response_sender, response_receiver) = tokio::sync::mpsc::channel(10);
+
         let handle = Arc::new(ConnectionHandle {
             id: connection.id(),
             writer: Arc::clone(&connection.writer),
             addr: addr,
             broadcast: broadcaster,
             state: Arc::clone(&connection.state),
-            room_sender: self.room_sender.clone(),
+            room_sender: Arc::clone(&self.room_sender),
+            response_sender: Arc::new(response_sender),
+            response_receiver: Arc::new(Mutex::new(response_receiver)),
         });
 
         let arc_connection = Arc::new(connection);
@@ -495,9 +504,11 @@ impl Wynd<TcpStream> {
         // Create the room event processor channel
         let (room_sender, mut room_receiver) =
             tokio::sync::mpsc::channel::<RoomEvents<TcpStream>>(100);
-        self.room_sender = room_sender;
+        let arc_room_sender = Arc::new(room_sender);
+        self.room_sender = Arc::clone(&arc_room_sender);
         // Spawn the room event processor task
         let rooms = Arc::clone(&self.rooms);
+        let clients = Arc::clone(&self.clients);
         tokio::spawn(async move {
             while let Some(room_data) = room_receiver.recv().await {
                 match room_data {
@@ -683,6 +694,52 @@ impl Wynd<TcpStream> {
                             rooms_guard.retain(|r| r.room_name != room_name);
                         }
                     }
+                    RoomEvents::ListRooms { client_id } => {
+                        let rooms_guard = rooms.lock().await;
+                        let mut list = Vec::new();
+                        for room in rooms_guard.iter() {
+                            list.push(room.room_name.clone());
+                        }
+
+                        // Find the connection and send response to its dedicated channel
+                        let clients_guard = clients.lock().await;
+                        if let Some((_, handle)) =
+                            clients_guard.iter().find(|(_, h)| h.id() == client_id)
+                        {
+                            if let Err(e) = handle.response_sender.send(list).await {
+                                eprintln!(
+                                    "Failed to send list rooms response to client {}: {}",
+                                    client_id, e
+                                );
+                            }
+                        } else {
+                            eprintln!("Client {} not found for list rooms response", client_id);
+                        }
+                    }
+                    RoomEvents::ListRoomsResponse {
+                        client_id: _,
+                        rooms: _,
+                    } => {}
+                    RoomEvents::LeaveAllRooms { client_id } => {
+                        let mut rooms_guard = rooms.lock().await;
+                        let mut rooms_to_remove = Vec::new();
+
+                        for (index, room) in rooms_guard.iter_mut().enumerate() {
+                            if room.room_clients.contains_key(&client_id) {
+                                room.room_clients.remove(&client_id);
+
+                                // Mark empty rooms for removal
+                                if room.room_clients.is_empty() {
+                                    rooms_to_remove.push(index);
+                                }
+                            }
+                        }
+
+                        // Remove empty rooms (in reverse order to maintain indices)
+                        for index in rooms_to_remove.iter().rev() {
+                            rooms_guard.remove(*index);
+                        }
+                    }
                 }
             }
         });
@@ -813,6 +870,10 @@ impl Wynd<WithRipress> {
                                         current_client_id: connection_id,
                                     };
 
+                                    // Create a dedicated response channel for this connection
+                                    let (response_sender, response_receiver) =
+                                        tokio::sync::mpsc::channel(10);
+
                                     let handle = Arc::new(ConnectionHandle {
                                         id: connection.id(),
                                         writer: Arc::clone(&connection.writer),
@@ -820,6 +881,8 @@ impl Wynd<WithRipress> {
                                         broadcast: broadcaster,
                                         state: Arc::clone(&connection.state),
                                         room_sender: wynd_clone.room_sender.clone(),
+                                        response_sender: Arc::new(response_sender),
+                                        response_receiver: Arc::new(Mutex::new(response_receiver)),
                                     });
 
                                     let arc_connection = Arc::new(connection);
