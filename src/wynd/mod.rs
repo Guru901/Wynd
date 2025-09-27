@@ -171,7 +171,7 @@ where
     /// Channel for receiving room events from all connections.
     /// This is used by the room event processor task.
     room_sender: Arc<tokio::sync::mpsc::Sender<RoomEvents<T>>>,
-    room_receiver: Arc<Mutex<tokio::sync::mpsc::Receiver<RoomEvents<T>>>>,
+    _room_receiver: Arc<Mutex<tokio::sync::mpsc::Receiver<RoomEvents<T>>>>,
 }
 
 impl<T> Debug for Wynd<T>
@@ -242,7 +242,7 @@ where
             addr: SocketAddr::from(([0, 0, 0, 0], 8080)),
             rooms: Arc::new(tokio::sync::Mutex::new(Vec::new())),
             room_sender: Arc::new(room_sender),
-            room_receiver: Arc::new(Mutex::new(room_receiver)),
+            _room_receiver: Arc::new(Mutex::new(room_receiver)),
         }
     }
 

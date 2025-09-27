@@ -90,14 +90,17 @@ where
         room_name: String,
     },
 
+    /// Request to List all the rooms joined by client with given id.
     ListRooms {
         /// Unique identifier of the client.
         client_id: u64,
     },
 
+    /// Response to List all the rooms joined by client with given id.
     ListRoomsResponse {
         /// Unique identifier of the client.
         client_id: u64,
+        /// List of rooms joined by client with given id.
         rooms: Vec<String>,
     },
 
@@ -149,7 +152,9 @@ where
         room_name: String,
     },
 
+    /// Request to leave all rooms.
     LeaveAllRooms {
+        ///  Unique identifier of the client.
         client_id: u64,
     },
 }
