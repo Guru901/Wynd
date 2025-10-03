@@ -53,6 +53,7 @@
 use hyper_tungstenite::hyper;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::Mutex;
+use tokio::sync::mpsc::Receiver;
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -66,7 +67,7 @@ use tokio::time::timeout;
 use tokio_tungstenite::accept_async;
 
 use crate::conn::Connection;
-use crate::handle::{Broadcaster, ConnectionHandle};
+use crate::handle::{self, Broadcaster, ConnectionHandle};
 use crate::room::{Room, RoomEvents};
 use crate::types::WyndError;
 use std::fmt::Debug;
@@ -502,13 +503,63 @@ impl Wynd<TcpStream> {
         self.addr = listener.local_addr().unwrap();
 
         // Create the room event processor channel
-        let (room_sender, mut room_receiver) =
-            tokio::sync::mpsc::channel::<RoomEvents<TcpStream>>(100);
+        let (room_sender, room_receiver) = tokio::sync::mpsc::channel::<RoomEvents<TcpStream>>(100);
+
         let arc_room_sender = Arc::new(room_sender);
+
         self.room_sender = Arc::clone(&arc_room_sender);
+
         // Spawn the room event processor task
         let rooms = Arc::clone(&self.rooms);
         let clients = Arc::clone(&self.clients);
+
+        // Connection b/w the ConnectionHandle and Wynd Struct.
+        Self::handle_communication(room_receiver, rooms, clients);
+
+        // Call the listening callback
+        on_listening();
+
+        let wynd = Arc::new(Mutex::new(self));
+
+        loop {
+            match listener.accept().await {
+                Ok((stream, addr)) => {
+                    let wynd_clone = Arc::clone(&wynd);
+                    tokio::spawn(async move {
+                        if let Err(e) = wynd_clone
+                            .lock()
+                            .await
+                            .handle_connection(stream, addr)
+                            .await
+                        {
+                            eprintln!("Error handling connection: {}", e);
+                        }
+                    });
+                }
+                Err(e) => {
+                    let wynd_guard = wynd.lock().await;
+                    let handler = wynd_guard.error_handler.as_ref();
+
+                    if let Some(handler) = handler {
+                        handler(WyndError::new(e.to_string())).await;
+                    } else {
+                        eprintln!("Error accepting connection: {}", e);
+                    }
+
+                    eprintln!("accept() failed: {e}. Retrying...");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+
+                    continue;
+                }
+            }
+        }
+    }
+
+    fn handle_communication(
+        mut room_receiver: Receiver<RoomEvents<TcpStream>>,
+        rooms: Arc<Mutex<Vec<Room<TcpStream>>>>,
+        clients: Arc<Mutex<Vec<(Arc<Connection<TcpStream>>, Arc<ConnectionHandle<TcpStream>>)>>>,
+    ) {
         tokio::spawn(async move {
             while let Some(room_data) = room_receiver.recv().await {
                 match room_data {
@@ -743,43 +794,6 @@ impl Wynd<TcpStream> {
                 }
             }
         });
-        // Call the listening callback
-        on_listening();
-
-        let wynd = Arc::new(Mutex::new(self));
-
-        loop {
-            match listener.accept().await {
-                Ok((stream, addr)) => {
-                    let wynd_clone = Arc::clone(&wynd);
-                    tokio::spawn(async move {
-                        if let Err(e) = wynd_clone
-                            .lock()
-                            .await
-                            .handle_connection(stream, addr)
-                            .await
-                        {
-                            eprintln!("Error handling connection: {}", e);
-                        }
-                    });
-                }
-                Err(e) => {
-                    let wynd_guard = wynd.lock().await;
-                    let handler = wynd_guard.error_handler.as_ref();
-
-                    if let Some(handler) = handler {
-                        handler(WyndError::new(e.to_string())).await;
-                    } else {
-                        eprintln!("Error accepting connection: {}", e);
-                    }
-
-                    eprintln!("accept() failed: {e}. Retrying...");
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-
-                    continue;
-                }
-            }
-        }
     }
 }
 
