@@ -67,7 +67,7 @@ use tokio::time::timeout;
 use tokio_tungstenite::accept_async;
 
 use crate::conn::Connection;
-use crate::handle::{self, Broadcaster, ConnectionHandle};
+use crate::handle::{Broadcaster, ConnectionHandle};
 use crate::room::{Room, RoomEvents};
 use crate::types::WyndError;
 use std::fmt::Debug;
