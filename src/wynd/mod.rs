@@ -504,10 +504,7 @@ impl Wynd<TcpStream> {
 
         // Create the room event processor channel
         let (room_sender, room_receiver) = tokio::sync::mpsc::channel::<RoomEvents<TcpStream>>(100);
-
-        let arc_room_sender = Arc::new(room_sender);
-
-        self.room_sender = Arc::clone(&arc_room_sender);
+        self.room_sender = Arc::new(room_sender);
 
         // Spawn the room event processor task
         let rooms = Arc::clone(&self.rooms);
