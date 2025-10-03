@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.1] - 2025-10-03
+
+- Internal refactor
+- Reorganized connection lifecycle flow
+
 ## [0.9.0] - 2025-09-27
 
 - Added `handle.joined_rooms()` method
