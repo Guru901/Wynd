@@ -71,6 +71,12 @@ cd ../tests
 bun install
 
 # Run Playwright tests, fail script if tests fail
+
+bunx playwright install || {
+  echo "Playwright install failed" >&2
+  exit 1
+}
+
 bunx playwright test || {
   echo "Playwright tests failed" >&2
   exit 1
