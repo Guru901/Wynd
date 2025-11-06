@@ -15,7 +15,7 @@ bytes = "1.10.1"
 futures = "0.3.31"
 tokio = { version = "1.46.1", features = ["macros", "rt-multi-thread", "fs", "io-util", "net", "sync", "time"] }
 tokio-tungstenite = "0.28"
-uuid = { version = "1.8.0", features = ["v4"] }
+uuid = { version = "1.18.0", features = ["v4"] }
 
 hyper = { version = "1.7", optional = true }
 hyper-tungstenite = { version = "0.19", optional = true }
