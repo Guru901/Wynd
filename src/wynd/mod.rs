@@ -50,7 +50,13 @@
 //! ```
 
 #[cfg(feature = "with-ripress")]
+use http_body_util::Full;
+#[cfg(feature = "with-ripress")]
+use hyper::body::Bytes;
+#[cfg(feature = "with-ripress")]
 use hyper_tungstenite::hyper;
+#[cfg(feature = "with-ripress")]
+use hyper_util::rt::TokioIo;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::Mutex;
 use tokio::sync::mpsc::Receiver;
@@ -192,11 +198,12 @@ pub type Standalone = TcpStream;
 
 /// The concrete IO type when integrating Wynd with `ripress`.
 ///
-/// This alias selects `hyper::upgrade::Upgraded` for the server transport when
+/// This alias selects `TokioIo<hyper::upgrade::Upgraded>` for the server transport when
 /// the `with-ripress` feature is enabled.
+/// `TokioIo` is required to make `Upgraded` implement `AsyncRead` and `AsyncWrite`.
 
 #[cfg(feature = "with-ripress")]
-pub type WithRipress = hyper::upgrade::Upgraded;
+pub type WithRipress = TokioIo<hyper::upgrade::Upgraded>;
 
 impl<T> Drop for Wynd<T>
 where
@@ -828,9 +835,9 @@ impl Wynd<WithRipress> {
     pub fn handler(
         self,
     ) -> impl Fn(
-        hyper::Request<hyper::Body>,
+        hyper::Request<hyper::body::Incoming>,
     )
-        -> Pin<Box<dyn Future<Output = hyper::Result<hyper::Response<hyper::Body>>> + Send>>
+        -> Pin<Box<dyn Future<Output = hyper::Result<hyper::Response<Full<Bytes>>>> + Send>>
     + Send
     + Sync
     + 'static {
@@ -852,20 +859,22 @@ impl Wynd<WithRipress> {
                 if !is_websocket_upgrade || !has_websocket_key || !has_websocket_version {
                     let response = hyper::Response::builder()
                         .status(400)
-                        .body(hyper::Body::from("Expected WebSocket upgrade"))
+                        .body(Full::new(Bytes::from("Expected WebSocket upgrade")))
                         .unwrap();
                     return Ok(response);
                 }
 
-                // Perform the WebSocket upgrade - this is the key difference
+                // Use hyper_tungstenite::upgrade to handle WebSocket upgrade
+                // It returns WebSocketStream<hyper::upgrade::Upgraded>
+                // We need to convert this to WebSocketStream<TokioIo<hyper::upgrade::Upgraded>>
                 match hyper_tungstenite::upgrade(&mut req, None) {
                     Ok((response, websocket_future)) => {
-                        // Spawn task to handle the WebSocket connection
                         let wynd_clone = Arc::clone(&wynd);
                         tokio::spawn(async move {
-                            // We must ensure that errors are 'Send' to be used in spawned tasks.
                             match websocket_future.await {
                                 Ok(ws_stream) => {
+                                    // hyper_tungstenite returns WebSocketStream<TokioIo<Upgraded>>
+                                    // which matches our WithRipress type alias
                                     let connection_id = wynd_clone
                                         .next_connection_id
                                         .fetch_add(1, Ordering::Relaxed);
@@ -928,28 +937,22 @@ impl Wynd<WithRipress> {
                                     {
                                         eprintln!("Error handling WebSocket connection: {}", e);
                                         if let Some(ref _error_handler) = wynd_clone.error_handler {
-                                            // TODO: FIX THIS
-                                            // Convert error to string to avoid non-Send trait objects
-                                            // Ensure WyndError is Send by using String
-                                            // error_handler(WyndError::new(e.to_string())).await;
+                                            // TODO: Handle error properly
                                         }
                                     }
                                 }
                                 Err(e) => {
                                     eprintln!("WebSocket handshake failed: {:?}", e);
-                                    // if let Some(ref error_handler) = wynd_clone.error_handler {}
                                 }
                             }
                         });
-
-                        // Return the upgrade response immediately - this completes the handshake
                         Ok(response)
                     }
                     Err(e) => {
                         eprintln!("WebSocket upgrade failed: {:?}", e);
                         let response = hyper::Response::builder()
                             .status(400)
-                            .body(hyper::Body::from("WebSocket upgrade failed"))
+                            .body(Full::new(Bytes::from("WebSocket upgrade failed")))
                             .unwrap();
                         Ok(response)
                     }

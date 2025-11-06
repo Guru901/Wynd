@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.2] - 2025-11-07
+
+- Updated Hyper to 1.7
+- Updated support for ripress
+
 ## [0.9.1] - 2025-10-03
 
 - Internal refactor

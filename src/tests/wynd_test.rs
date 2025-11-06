@@ -172,18 +172,18 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Connect as client and test echo
-        let url = Url::parse(&format!("ws://127.0.0.1:{}", port)).unwrap();
-        if let Ok(ws_stream) = timeout(Duration::from_millis(1000), connect_async(url)).await {
-            if let Ok(_) = ws_stream {
+        let url = format!("ws://127.0.0.1:{}", port);
+        if let Ok(ws_stream_result) =
+            timeout(Duration::from_millis(1000), connect_async(&url)).await
+        {
+            if let Ok((mut ws_stream, _)) = ws_stream_result {
                 // Send test message
                 let test_message = "Hello WebSocket!";
-                let (mut ws_stream, _) = ws_stream.unwrap();
                 if ws_stream
-                    .send(Message::Text(test_message.to_string()))
+                    .send(Message::Text(test_message.into()))
                     .await
                     .is_ok()
                 {
-                    // Read response
                     if let Ok(Some(response)) =
                         timeout(Duration::from_millis(500), ws_stream.next()).await
                     {
