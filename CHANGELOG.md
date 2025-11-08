@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.9.3] - 2025-11-07
+
+- Fixed bugs in ripress integration
+
 ## [0.9.2] - 2025-11-07
 
 - Updated Hyper to 1.7
