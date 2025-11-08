@@ -52,8 +52,6 @@
 #[cfg(feature = "with-ripress")]
 use http_body_util::Full;
 #[cfg(feature = "with-ripress")]
-use hyper::body::Bytes;
-#[cfg(feature = "with-ripress")]
 use hyper_tungstenite::hyper;
 #[cfg(feature = "with-ripress")]
 use hyper_util::rt::TokioIo;
@@ -835,14 +833,20 @@ impl Wynd<WithRipress> {
     pub fn handler(
         self,
     ) -> impl Fn(
-        hyper::Request<hyper::body::Incoming>,
-    )
-        -> Pin<Box<dyn Future<Output = hyper::Result<hyper::Response<Full<Bytes>>>> + Send>>
-    + Send
+        hyper::Request<Full<hyper_tungstenite::hyper::body::Bytes>>,
+    ) -> Pin<
+        Box<
+            dyn Future<
+                    Output = hyper::Result<
+                        hyper::Response<Full<hyper_tungstenite::hyper::body::Bytes>>,
+                    >,
+                > + Send,
+        >,
+    > + Send
     + Sync
     + 'static {
         let wynd = Arc::new(self);
-        move |mut req| {
+        move |req| {
             let wynd = Arc::clone(&wynd);
             Box::pin(async move {
                 // Check if this is a WebSocket upgrade request
@@ -859,100 +863,120 @@ impl Wynd<WithRipress> {
                 if !is_websocket_upgrade || !has_websocket_key || !has_websocket_version {
                     let response = hyper::Response::builder()
                         .status(400)
-                        .body(Full::new(Bytes::from("Expected WebSocket upgrade")))
+                        .body(Full::new(hyper_tungstenite::hyper::body::Bytes::from(
+                            "Expected WebSocket upgrade",
+                        )))
                         .unwrap();
                     return Ok(response);
                 }
 
                 // Use hyper_tungstenite::upgrade to handle WebSocket upgrade
+                // For Full<Bytes>, the body is already in memory and doesn't need to be consumed
+                // We pass the request by mutable reference as the upgrade function needs to call hyper::upgrade::on()
                 // It returns WebSocketStream<hyper::upgrade::Upgraded>
                 // We need to convert this to WebSocketStream<TokioIo<hyper::upgrade::Upgraded>>
-                match hyper_tungstenite::upgrade(&mut req, None) {
+                let mut req_for_upgrade = req;
+                match hyper_tungstenite::upgrade(&mut req_for_upgrade, None) {
                     Ok((response, websocket_future)) => {
+                        // Spawn the WebSocket handling task
+                        // The response must be returned immediately so it can be sent to the client
+                        // The upgrade future will only resolve after the response is sent
                         let wynd_clone = Arc::clone(&wynd);
                         tokio::spawn(async move {
-                            match websocket_future.await {
-                                Ok(ws_stream) => {
-                                    // hyper_tungstenite returns WebSocketStream<TokioIo<Upgraded>>
-                                    // which matches our WithRipress type alias
-                                    let connection_id = wynd_clone
-                                        .next_connection_id
-                                        .fetch_add(1, Ordering::Relaxed);
-
-                                    let mut connection =
-                                        Connection::new(connection_id, ws_stream, wynd_clone.addr);
-
-                                    connection
-                                        .set_clients_registry(Arc::clone(&wynd_clone.clients));
-
-                                    let broadcaster = Broadcaster {
-                                        clients: Arc::clone(&wynd_clone.clients),
-                                        current_client_id: connection_id,
-                                    };
-
-                                    // Create a dedicated response channel for this connection
-                                    let (response_sender, response_receiver) =
-                                        tokio::sync::mpsc::channel(10);
-
-                                    let handle = Arc::new(ConnectionHandle {
-                                        id: connection.id(),
-                                        writer: Arc::clone(&connection.writer),
-                                        addr: wynd_clone.addr,
-                                        broadcast: broadcaster,
-                                        state: Arc::clone(&connection.state),
-                                        room_sender: wynd_clone.room_sender.clone(),
-                                        response_sender: Arc::new(response_sender),
-                                        response_receiver: Arc::new(Mutex::new(response_receiver)),
-                                    });
-
-                                    let arc_connection = Arc::new(connection);
-
-                                    // Set the handle on the connection so it can be used in on_open
-                                    arc_connection.set_handle(Arc::clone(&handle)).await;
-
-                                    {
-                                        let mut clients = wynd_clone.clients.lock().await;
-                                        clients.push((
-                                            Arc::clone(&arc_connection),
-                                            Arc::clone(&handle),
-                                        ));
-                                    }
-
-                                    // Remove this connection from the registry when it closes
-                                    {
-                                        let clients_registry = Arc::clone(&wynd_clone.clients);
-                                        let handle_id = handle.id();
-                                        arc_connection.on_close(move |_event| {
-                                            let clients_registry = Arc::clone(&clients_registry);
-                                            async move {
-                                                let mut clients = clients_registry.lock().await;
-                                                clients.retain(|(_c, h)| h.id() != handle_id);
-                                            }
-                                        });
-                                    }
-
-                                    if let Err(e) = wynd_clone
-                                        .handle_websocket_connection(Arc::clone(&arc_connection))
-                                        .await
-                                    {
-                                        eprintln!("Error handling WebSocket connection: {}", e);
-                                        if let Some(ref _error_handler) = wynd_clone.error_handler {
-                                            // TODO: Handle error properly
-                                        }
-                                    }
-                                }
+                            // Await the upgrade future - this will only resolve after the response is sent
+                            let ws_stream = match websocket_future.await {
+                                Ok(stream) => stream,
                                 Err(e) => {
-                                    eprintln!("WebSocket handshake failed: {:?}", e);
+                                    if let Some(ref error_handler) = wynd_clone.error_handler {
+                                        error_handler(crate::types::WyndError::new(format!(
+                                            "WebSocket handshake failed: {:?}",
+                                            e
+                                        )))
+                                        .await;
+                                    }
+                                    return;
                                 }
+                            };
+
+                            // hyper_tungstenite returns WebSocketStream<TokioIo<Upgraded>>
+                            // which matches our WithRipress type alias
+                            let connection_id = wynd_clone
+                                .next_connection_id
+                                .fetch_add(1, Ordering::Relaxed);
+
+                            let mut connection =
+                                Connection::new(connection_id, ws_stream, wynd_clone.addr);
+
+                            connection.set_clients_registry(Arc::clone(&wynd_clone.clients));
+
+                            let broadcaster = Broadcaster {
+                                clients: Arc::clone(&wynd_clone.clients),
+                                current_client_id: connection_id,
+                            };
+
+                            // Create a dedicated response channel for this connection
+                            let (response_sender, response_receiver) =
+                                tokio::sync::mpsc::channel(10);
+
+                            let handle = Arc::new(ConnectionHandle {
+                                id: connection.id(),
+                                writer: Arc::clone(&connection.writer),
+                                addr: wynd_clone.addr,
+                                broadcast: broadcaster,
+                                state: Arc::clone(&connection.state),
+                                room_sender: wynd_clone.room_sender.clone(),
+                                response_sender: Arc::new(response_sender),
+                                response_receiver: Arc::new(Mutex::new(response_receiver)),
+                            });
+
+                            let arc_connection = Arc::new(connection);
+
+                            // Set the handle on the connection so it can be used in on_open
+                            arc_connection.set_handle(Arc::clone(&handle)).await;
+
+                            {
+                                let mut clients = wynd_clone.clients.lock().await;
+                                clients.push((Arc::clone(&arc_connection), Arc::clone(&handle)));
+                            }
+
+                            // Remove this connection from the registry when it closes
+                            {
+                                let clients_registry = Arc::clone(&wynd_clone.clients);
+                                let handle_id = handle.id();
+                                arc_connection.on_close(move |_event| {
+                                    let clients_registry = Arc::clone(&clients_registry);
+                                    async move {
+                                        let mut clients = clients_registry.lock().await;
+                                        clients.retain(|(_c, h)| h.id() != handle_id);
+                                    }
+                                });
+                            }
+
+                            // Handle the WebSocket connection - this will start the message loop
+                            if let Err(e) = wynd_clone
+                                .handle_websocket_connection(Arc::clone(&arc_connection))
+                                .await
+                            {
+                                if let Some(ref error_handler) = wynd_clone.error_handler {
+                                    error_handler(crate::types::WyndError::new(e.to_string()))
+                                        .await;
+                                }
+                            } else {
+                                eprintln!(
+                                    "[DEBUG] WebSocket connection handling completed successfully"
+                                );
                             }
                         });
+                        // Return the response immediately - this must be sent before the upgrade future resolves
                         Ok(response)
                     }
                     Err(e) => {
                         eprintln!("WebSocket upgrade failed: {:?}", e);
                         let response = hyper::Response::builder()
                             .status(400)
-                            .body(Full::new(Bytes::from("WebSocket upgrade failed")))
+                            .body(Full::new(hyper_tungstenite::hyper::body::Bytes::from(
+                                "WebSocket upgrade failed",
+                            )))
                             .unwrap();
                         Ok(response)
                     }
@@ -965,9 +989,15 @@ impl Wynd<WithRipress> {
     async fn handle_websocket_connection(
         &self,
         connection: Arc<Connection<WithRipress>>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Start the connection lifecycle by invoking on_open immediately
-        connection.on_open(|_handle| async move {}).await;
+        // This spawns a task that starts the message loop
+        connection
+            .on_open(|_handle| async move {
+                eprintln!("[DEBUG] on_open handler called");
+            })
+            .await;
+
         // Allow user code to register handlers for this connection
         if let Some(ref handler) = self.connection_handler {
             handler(connection).await;

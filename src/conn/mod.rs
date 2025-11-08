@@ -487,6 +487,7 @@ where
                 let open_handler = open_handler_clone.lock().await;
                 if let Some(ref handler) = *open_handler {
                     handler(Arc::clone(&handle_clone)).await;
+                } else {
                 }
             }
 
@@ -694,7 +695,8 @@ where
         loop {
             let msg = {
                 let mut rd = reader.lock().await;
-                futures::StreamExt::next(&mut *rd).await
+                let msg = futures::StreamExt::next(&mut *rd).await;
+                msg
             };
 
             match msg {
