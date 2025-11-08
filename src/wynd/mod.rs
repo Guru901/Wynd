@@ -942,12 +942,29 @@ impl Wynd<WithRipress> {
                             // Remove this connection from the registry when it closes
                             {
                                 let clients_registry = Arc::clone(&wynd_clone.clients);
+                                let rooms_registry = Arc::clone(&wynd_clone.rooms);
                                 let handle_id = handle.id();
                                 arc_connection.on_close(move |_event| {
                                     let clients_registry = Arc::clone(&clients_registry);
+                                    let rooms_registry = Arc::clone(&rooms_registry);
+                                    let handle_id = handle_id;
                                     async move {
-                                        let mut clients = clients_registry.lock().await;
-                                        clients.retain(|(_c, h)| h.id() != handle_id);
+                                        // Remove from clients registry first
+                                        {
+                                            let mut clients = clients_registry.lock().await;
+                                            clients.retain(|(_c, h)| h.id() != handle_id);
+                                        }
+                                        // Drop the clients lock before acquiring rooms lock to avoid deadlocks
+
+                                        // Remove from all rooms
+                                        {
+                                            let mut rooms = rooms_registry.lock().await;
+                                            for room in rooms.iter_mut() {
+                                                room.room_clients.remove(&handle_id);
+                                            }
+                                            // Remove empty rooms
+                                            rooms.retain(|room| !room.room_clients.is_empty());
+                                        }
                                     }
                                 });
                             }
