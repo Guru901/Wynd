@@ -52,11 +52,7 @@
 
 use std::{fmt::Debug, net::SocketAddr, sync::Arc};
 
-use futures::FutureExt;
-use tokio::{
-    io::{AsyncRead, AsyncWrite},
-    sync::Mutex,
-};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
 use crate::{
@@ -70,14 +66,15 @@ use crate::{
 ///
 /// Handlers for connection close events receive a `CloseEvent` with
 /// the close code and reason.
-type CloseHandler = Arc<Mutex<Option<Box<dyn Fn(CloseEvent) -> BoxFuture<()> + Send + Sync>>>>;
+type CloseHandler =
+    Arc<tokio::sync::Mutex<Option<Box<dyn Fn(CloseEvent) -> BoxFuture<()> + Send + Sync>>>>;
 
 /// Type alias for text message handlers.
 ///
 /// Handlers for text messages receive a `TextMessageEvent` and a
 /// `ConnectionHandle` for sending responses.
 type TextMessageHandler<T> = Arc<
-    Mutex<
+    tokio::sync::Mutex<
         Option<
             Box<dyn Fn(TextMessageEvent, Arc<ConnectionHandle<T>>) -> BoxFuture<()> + Send + Sync>,
         >,
@@ -89,7 +86,7 @@ type TextMessageHandler<T> = Arc<
 /// Handlers for binary messages receive a `BinaryMessageEvent` and a
 /// `ConnectionHandle` for sending responses.
 type BinaryMessageHandler<T> = Arc<
-    Mutex<
+    tokio::sync::Mutex<
         Option<
             Box<
                 dyn Fn(BinaryMessageEvent, Arc<ConnectionHandle<T>>) -> BoxFuture<()> + Send + Sync,
@@ -102,8 +99,11 @@ type BinaryMessageHandler<T> = Arc<
 ///
 /// Handlers for connection open events receive a `ConnectionHandle`
 /// for interacting with the connection.
-type OpenHandler<T> =
-    Arc<Mutex<Option<Box<dyn Fn(Arc<ConnectionHandle<T>>) -> BoxFuture<()> + Send + Sync>>>>;
+type OpenHandler<T> = Arc<
+    tokio::sync::Mutex<
+        Option<Box<dyn Fn(Arc<ConnectionHandle<T>>) -> BoxFuture<()> + Send + Sync>>,
+    >,
+>;
 
 /// Represents a WebSocket connection with event handlers.
 ///
@@ -168,8 +168,9 @@ where
     ///
     /// This is wrapped in an `Arc<Mutex<>>` to allow safe sharing
     /// between the connection and its handle.
-    reader: Arc<Mutex<futures::stream::SplitStream<WebSocketStream<T>>>>,
-    pub(crate) writer: Arc<Mutex<futures::stream::SplitSink<WebSocketStream<T>, Message>>>,
+    reader: Arc<tokio::sync::Mutex<futures::stream::SplitStream<WebSocketStream<T>>>>,
+    pub(crate) writer:
+        Arc<tokio::sync::Mutex<futures::stream::SplitSink<WebSocketStream<T>, Message>>>,
 
     /// The remote address of the connection.
     ///
@@ -189,13 +190,13 @@ where
     close_handler: CloseHandler,
 
     /// State of the current connection.
-    pub(crate) state: Arc<Mutex<ConnState>>,
+    pub(crate) state: Arc<tokio::sync::Mutex<ConnState>>,
 
-    clients: Arc<Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
+    clients: Arc<tokio::sync::Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
 
     /// The connection handle created during connection setup.
     /// This is set by the server and used throughout the connection lifecycle.
-    pub(crate) handle: Arc<Mutex<Option<Arc<ConnectionHandle<T>>>>>,
+    pub(crate) handle: Arc<tokio::sync::Mutex<Option<Arc<ConnectionHandle<T>>>>>,
 }
 
 impl<T> std::fmt::Debug for Connection<T>
@@ -266,16 +267,16 @@ where
 
         Self {
             id,
-            state: Arc::new(Mutex::new(ConnState::CONNECTING)),
-            reader: Arc::new(Mutex::new(reader)),
-            writer: Arc::new(Mutex::new(writer)),
+            state: Arc::new(tokio::sync::Mutex::new(ConnState::CONNECTING)),
+            reader: Arc::new(tokio::sync::Mutex::new(reader)),
+            writer: Arc::new(tokio::sync::Mutex::new(writer)),
             addr,
-            open_handler: Arc::new(Mutex::new(None)),
-            text_message_handler: Arc::new(Mutex::new(None)),
-            binary_message_handler: Arc::new(Mutex::new(None)),
-            close_handler: Arc::new(Mutex::new(None)),
-            clients: Arc::new(Mutex::new(Vec::new())),
-            handle: Arc::new(Mutex::new(None)),
+            open_handler: Arc::new(tokio::sync::Mutex::new(None)),
+            text_message_handler: Arc::new(tokio::sync::Mutex::new(None)),
+            binary_message_handler: Arc::new(tokio::sync::Mutex::new(None)),
+            close_handler: Arc::new(tokio::sync::Mutex::new(None)),
+            clients: Arc::new(tokio::sync::Mutex::new(Vec::new())),
+            handle: Arc::new(tokio::sync::Mutex::new(None)),
         }
     }
 
@@ -285,7 +286,7 @@ where
     /// targets all active clients managed by the server, not a per-connection list.
     pub(crate) fn set_clients_registry(
         &mut self,
-        clients: Arc<Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
+        clients: Arc<tokio::sync::Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
     ) {
         self.clients = clients;
     }
@@ -428,19 +429,7 @@ where
         F: Fn(Arc<ConnectionHandle<T>>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        let mut open_handler: tokio::sync::MutexGuard<
-            '_,
-            Option<
-                Box<
-                    dyn Fn(
-                            Arc<ConnectionHandle<T>>,
-                        )
-                            -> std::pin::Pin<Box<dyn Future<Output = ()> + Send>>
-                        + Send
-                        + Sync,
-                >,
-            >,
-        > = self.open_handler.lock().await;
+        let mut open_handler = self.open_handler.lock().await;
         *open_handler = Some(Box::new(move |handle| Box::pin(handler(handle))));
 
         // Acquire or synthesize a handle if not set (e.g., in tests)
@@ -462,7 +451,7 @@ where
                     state: Arc::clone(&self.state),
                     room_sender: Arc::new(tx),
                     response_sender: Arc::new(response_tx),
-                    response_receiver: Arc::new(Mutex::new(response_rx)),
+                    response_receiver: Arc::new(tokio::sync::Mutex::new(response_rx)),
                 })
             }
         };
@@ -484,10 +473,18 @@ where
                     *s = ConnState::OPEN;
                 }
 
-                let open_handler = open_handler_clone.lock().await;
-                if let Some(ref handler) = *open_handler {
-                    handler(Arc::clone(&handle_clone)).await;
-                } else {
+                {
+                    let handler_fut = {
+                        let open_handler = open_handler_clone.lock().await;
+                        if let Some(ref handler) = *open_handler {
+                            Some(handler(Arc::clone(&handle_clone)))
+                        } else {
+                            None
+                        }
+                    };
+                    if let Some(fut) = handler_fut {
+                        fut.await;
+                    }
                 }
             }
 
@@ -609,12 +606,10 @@ where
         Fut: Future<Output = ()> + Send + 'static,
     {
         let text_message_handler = Arc::clone(&self.text_message_handler);
-        tokio::task::block_in_place(|| {}); // optional: remove; placeholder to highlight sync intent
-        let text_message_handler_fut = async move {
+        tokio::spawn(async move {
             let mut lock = text_message_handler.lock().await;
             *lock = Some(Box::new(move |msg, handle| Box::pin(handler(msg, handle))));
-        };
-        text_message_handler_fut.now_or_never();
+        });
     }
 
     /// Registers a handler for connection close events.
@@ -689,8 +684,8 @@ where
         text_message_handler: TextMessageHandler<T>,
         binary_message_handler: BinaryMessageHandler<T>,
         close_handler: CloseHandler,
-        reader: Arc<Mutex<futures::stream::SplitStream<WebSocketStream<T>>>>,
-        state: Arc<Mutex<ConnState>>,
+        reader: Arc<tokio::sync::Mutex<futures::stream::SplitStream<WebSocketStream<T>>>>,
+        state: Arc<tokio::sync::Mutex<ConnState>>,
     ) {
         loop {
             let msg = {
@@ -701,9 +696,19 @@ where
 
             match msg {
                 Some(Ok(Message::Text(text))) => {
-                    let handler = text_message_handler.lock().await;
-                    if let Some(ref h) = *handler {
-                        h(TextMessageEvent::new(text.to_string()), Arc::clone(&handle)).await;
+                    let handler_fut = {
+                        let handler = text_message_handler.lock().await;
+                        if let Some(ref h) = *handler {
+                            Some(h(
+                                TextMessageEvent::new(text.to_string()),
+                                Arc::clone(&handle),
+                            ))
+                        } else {
+                            None
+                        }
+                    };
+                    if let Some(fut) = handler_fut {
+                        fut.await;
                     }
                 }
                 Some(Ok(Message::Ping(payload))) => {
@@ -715,9 +720,19 @@ where
                     // Optional: update heartbeat/latency metrics here.
                 }
                 Some(Ok(Message::Binary(data))) => {
-                    let handler = binary_message_handler.lock().await;
-                    if let Some(ref h) = *handler {
-                        h(BinaryMessageEvent::new(data.to_vec()), Arc::clone(&handle)).await;
+                    let handler_fut = {
+                        let handler = binary_message_handler.lock().await;
+                        if let Some(ref h) = *handler {
+                            Some(h(
+                                BinaryMessageEvent::new(data.to_vec()),
+                                Arc::clone(&handle),
+                            ))
+                        } else {
+                            None
+                        }
+                    };
+                    if let Some(fut) = handler_fut {
+                        fut.await;
                     }
                 }
                 Some(Ok(Message::Close(close_frame))) => {
@@ -727,9 +742,16 @@ where
                     };
 
                     // Connection closed
-                    let handler = close_handler.lock().await;
-                    if let Some(ref h) = *handler {
-                        h(close_event).await;
+                    let handler_fut = {
+                        let handler = close_handler.lock().await;
+                        if let Some(ref h) = *handler {
+                            Some(h(close_event))
+                        } else {
+                            None
+                        }
+                    };
+                    if let Some(fut) = handler_fut {
+                        fut.await;
                     }
                     {
                         let mut s = state.lock().await;

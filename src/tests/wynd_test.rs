@@ -7,7 +7,6 @@ mod tests {
     use std::time::Duration;
     use tokio::time::timeout;
     use tokio_tungstenite::{connect_async, tungstenite::Message};
-    use url::Url;
 
     use crate::wynd::{Standalone, Wynd};
 
