@@ -2,6 +2,10 @@
 
 ## [0.9.4] - 2025-11-14
 
+- Removed unused dependencies
+
+## [0.9.4] - 2025-11-14
+
 - Replaced tokio mutexes with std mutexs where possible to increase performance
 
 ## [0.9.3] - 2025-11-07
