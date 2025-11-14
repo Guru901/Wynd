@@ -1494,7 +1494,6 @@ dependencies = [
  "ripress",
  "tokio",
  "tokio-tungstenite",
- "url",
  "uuid",
 ]
 

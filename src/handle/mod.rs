@@ -6,10 +6,7 @@
 //! See `wynd::Wynd` and `conn::Connection` for where these are produced.
 use std::{fmt::Debug, net::SocketAddr, sync::Arc};
 
-use tokio::{
-    io::{AsyncRead, AsyncWrite},
-    sync::Mutex,
-};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
 use crate::{
@@ -69,7 +66,8 @@ where
     /// The underlying WebSocket stream.
     ///
     /// This is shared with the `Connection` to allow both to send messages.
-    pub(crate) writer: Arc<Mutex<futures::stream::SplitSink<WebSocketStream<T>, Message>>>,
+    pub(crate) writer:
+        Arc<tokio::sync::Mutex<futures::stream::SplitSink<WebSocketStream<T>, Message>>>,
 
     /// The remote address of the connection.
     pub(crate) addr: SocketAddr,
@@ -77,11 +75,11 @@ where
     /// Broadcaster that can send messages to all active clients.
     pub broadcast: Broadcaster<T>,
 
-    pub(crate) state: Arc<Mutex<ConnState>>,
+    pub(crate) state: Arc<tokio::sync::Mutex<ConnState>>,
 
     pub(crate) room_sender: Arc<tokio::sync::mpsc::Sender<RoomEvents<T>>>,
     pub(crate) response_sender: Arc<tokio::sync::mpsc::Sender<Vec<String>>>,
-    pub(crate) response_receiver: Arc<Mutex<tokio::sync::mpsc::Receiver<Vec<String>>>>,
+    pub(crate) response_receiver: Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<Vec<String>>>>,
 }
 
 impl<T> Clone for ConnectionHandle<T>
@@ -412,7 +410,7 @@ where
     ///     handle.to("my_room").text("Hello, room!").await.unwrap();
     /// };
     /// ```
-    pub fn to(&self, room_name: &str) -> RoomMethods<T> {
+    pub fn to(&'_ self, room_name: &str) -> RoomMethods<'_, T> {
         RoomMethods {
             room_name: room_name.to_string(),
             id: self.id,
@@ -523,7 +521,8 @@ where
 {
     pub(crate) current_client_id: u64,
     /// Shared registry of all active connections and their handles.
-    pub(crate) clients: Arc<Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
+    pub(crate) clients:
+        Arc<tokio::sync::Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
 }
 
 impl<T> Clone for Broadcaster<T>

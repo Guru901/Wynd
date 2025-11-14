@@ -55,8 +55,8 @@ use http_body_util::Full;
 use hyper_tungstenite::hyper;
 #[cfg(feature = "with-ripress")]
 use hyper_util::rt::TokioIo;
+use std::sync::Mutex;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::sync::Mutex;
 use tokio::sync::mpsc::Receiver;
 
 use std::collections::HashMap;
@@ -434,7 +434,7 @@ where
             state: Arc::clone(&connection.state),
             room_sender: Arc::clone(&self.room_sender),
             response_sender: Arc::new(response_sender),
-            response_receiver: Arc::new(Mutex::new(response_receiver)),
+            response_receiver: Arc::new(tokio::sync::Mutex::new(response_receiver)),
         });
 
         let arc_connection = Arc::new(connection);
@@ -521,7 +521,7 @@ impl Wynd<TcpStream> {
         // Call the listening callback
         on_listening();
 
-        let wynd = Arc::new(Mutex::new(self));
+        let wynd = Arc::new(tokio::sync::Mutex::new(self));
 
         loop {
             match listener.accept().await {
@@ -559,8 +559,10 @@ impl Wynd<TcpStream> {
 
     fn handle_communication(
         mut room_receiver: Receiver<RoomEvents<TcpStream>>,
-        rooms: Arc<Mutex<Vec<Room<TcpStream>>>>,
-        clients: Arc<Mutex<Vec<(Arc<Connection<TcpStream>>, Arc<ConnectionHandle<TcpStream>>)>>>,
+        rooms: Arc<tokio::sync::Mutex<Vec<Room<TcpStream>>>>,
+        clients: Arc<
+            tokio::sync::Mutex<Vec<(Arc<Connection<TcpStream>>, Arc<ConnectionHandle<TcpStream>>)>>,
+        >,
     ) {
         tokio::spawn(async move {
             while let Some(room_data) = room_receiver.recv().await {
@@ -926,7 +928,9 @@ impl Wynd<WithRipress> {
                                 state: Arc::clone(&connection.state),
                                 room_sender: wynd_clone.room_sender.clone(),
                                 response_sender: Arc::new(response_sender),
-                                response_receiver: Arc::new(Mutex::new(response_receiver)),
+                                response_receiver: Arc::new(tokio::sync::Mutex::new(
+                                    response_receiver,
+                                )),
                             });
 
                             let arc_connection = Arc::new(connection);
