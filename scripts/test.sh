@@ -41,7 +41,6 @@ async fn main() {
     .unwrap();
 }
 ' > main.rs
-
 cargo run &  # Start server in background
 SERVER_PID=$!  # Store server process ID
 
