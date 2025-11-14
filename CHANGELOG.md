@@ -1,6 +1,10 @@
 # Changelog
 
-## [0.9.4] - 2025-11-14
+## [0.9.6] - 2025-11-14
+
+- Fixed conflicting versions with ripress integration
+
+## [0.9.5] - 2025-11-14
 
 - Removed unused dependencies
 
