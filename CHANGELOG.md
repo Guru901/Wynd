@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.9.7] - 2025-11-14
+
+- Fixed broken room implementation
+
 ## [0.9.6] - 2025-11-14
 
 - Fixed conflicting versions with ripress integration
