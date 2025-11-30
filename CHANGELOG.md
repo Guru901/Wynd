@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.9.8] - 2025-11-14
+
+- Changed server listener address from 127.0.0.1 to 0.0.0.0 to allow incoming connections on all network interfaces.
+
 ## [0.9.7] - 2025-11-14
 
 - Fixed broken room implementation
