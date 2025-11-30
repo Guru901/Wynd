@@ -753,7 +753,9 @@ impl Wynd<TcpStream> {
                         let rooms_guard = rooms.lock().await;
                         let mut list = Vec::new();
                         for room in rooms_guard.iter() {
-                            list.push(room.room_name.clone());
+                            if room.room_clients.contains_key(&client_id) {
+                                list.push(room.room_name.clone());
+                            }
                         }
 
                         // Find the connection and send response to its dedicated channel
