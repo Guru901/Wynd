@@ -503,7 +503,7 @@ impl Wynd<TcpStream> {
     where
         F: FnOnce() + Send + 'static,
     {
-        let addr = format!("127.0.0.1:{}", port);
+        let addr = format!("0.0.0.0:{}", port);
         let listener = TcpListener::bind(&addr).await?;
         self.addr = listener.local_addr().unwrap();
 
