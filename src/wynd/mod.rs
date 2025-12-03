@@ -948,7 +948,7 @@ impl Wynd<WithRipress> {
 
                             // Create a dedicated response channel for this connection
                             let (response_sender, response_receiver) =
-                                tokio::sync::mpsc::channel(10);
+                                tokio::sync::mpsc::channel(self.room_event_channel_capacity);
 
                             let handle = Arc::new(ConnectionHandle {
                                 id: connection.id(),
