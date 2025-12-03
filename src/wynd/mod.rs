@@ -63,8 +63,8 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
@@ -875,8 +875,8 @@ impl Wynd<WithRipress> {
                 > + Send,
         >,
     > + Send
-    + Sync
-    + 'static {
+           + Sync
+           + 'static {
         let wynd = Arc::new(self);
         move |req| {
             let wynd = Arc::clone(&wynd);
@@ -948,7 +948,7 @@ impl Wynd<WithRipress> {
 
                             // Create a dedicated response channel for this connection
                             let (response_sender, response_receiver) =
-                                tokio::sync::mpsc::channel(self.room_event_channel_capacity);
+                                tokio::sync::mpsc::channel(wynd_clone.room_event_channel_capacity);
 
                             let handle = Arc::new(ConnectionHandle {
                                 id: connection.id(),

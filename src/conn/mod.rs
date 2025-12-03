@@ -50,10 +50,10 @@
 //! }
 //! ```
 
-use std::{fmt::Debug, net::SocketAddr, sync::Arc};
+use std::{fmt::Debug, future::Future, net::SocketAddr, sync::Arc};
 
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
+use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use crate::{
     handle::ConnectionHandle,
