@@ -20,7 +20,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Debug + 'static,
 {
     pub(crate) room_clients: HashMap<u64, ConnectionHandle<T>>,
-    pub(crate) room_name: String,
+    pub(crate) room_name: &'static str,
 }
 
 impl<T> Room<T>
@@ -31,7 +31,7 @@ where
     pub fn new() -> Self {
         Self {
             room_clients: HashMap::new(),
-            room_name: String::new(),
+            room_name: "",
         }
     }
 
@@ -87,7 +87,7 @@ where
         /// Handle to the client's connection.
         handle: ConnectionHandle<T>,
         /// Target room name to join.
-        room_name: String,
+        room_name: &'static str,
     },
 
     /// Request to List all the rooms joined by client with given id.
@@ -109,7 +109,7 @@ where
         /// Sender client identifier.
         client_id: u64,
         /// Target room name.
-        room_name: String,
+        room_name: &'static str,
         /// UTF-8 text payload.
         text: String,
     },
@@ -119,7 +119,7 @@ where
         /// Sender client identifier.
         client_id: u64,
         /// Target room name.
-        room_name: String,
+        room_name: &'static str,
         /// UTF-8 text payload.
         text: String,
     },
@@ -129,7 +129,7 @@ where
         /// Sender client identifier.
         client_id: u64,
         /// Target room name.
-        room_name: String,
+        room_name: &'static str,
         /// Binary payload.
         bytes: Vec<u8>,
     },
@@ -139,7 +139,7 @@ where
         /// Sender client identifier.
         client_id: u64,
         /// Target room name.
-        room_name: String,
+        room_name: &'static str,
         /// Binary payload.
         bytes: Vec<u8>,
     },
@@ -149,7 +149,7 @@ where
         /// Unique identifier of the client.
         client_id: u64,
         /// Target room name to leave.
-        room_name: String,
+        room_name: &'static str,
     },
 
     /// Request to leave all rooms.
@@ -184,7 +184,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
 {
     /// The name of the target room.
-    pub(crate) room_name: String,
+    pub(crate) room_name: &'static str,
     /// The sender used to dispatch room events.
     pub(crate) room_sender: Arc<&'room_sender Sender<RoomEvents<T>>>,
     /// The unique identifier of the client (sender).
@@ -211,7 +211,7 @@ where
         self.room_sender
             .send(RoomEvents::TextMessage {
                 client_id: self.id,
-                room_name: self.room_name.clone(),
+                room_name: self.room_name,
                 text: text.into(),
             })
             .await

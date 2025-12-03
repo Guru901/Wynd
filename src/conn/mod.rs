@@ -439,7 +439,7 @@ where
             } else {
                 // Fallback handle uses this connection's writer/state and an ephemeral room channel
                 let (tx, _rx) = tokio::sync::mpsc::channel::<RoomEvents<T>>(1);
-                let (response_tx, response_rx) = tokio::sync::mpsc::channel::<Vec<String>>(1);
+                let (response_tx, response_rx) = tokio::sync::mpsc::channel::<Vec<&'static str>>(1);
                 Arc::new(crate::handle::ConnectionHandle {
                     id: self.id,
                     writer: Arc::clone(&self.writer),

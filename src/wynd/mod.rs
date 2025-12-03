@@ -142,6 +142,8 @@ where
     /// The address the server is listening on.
     pub(crate) addr: SocketAddr,
 
+    room_event_channel_capacity: usize,
+
     /// Handler for server-level errors.
     ///
     /// This handler is called when server-level errors occur, such as
@@ -248,8 +250,33 @@ where
             addr: SocketAddr::from(([0, 0, 0, 0], 8080)),
             rooms: Arc::new(tokio::sync::Mutex::new(Vec::new())),
             room_sender: Arc::new(room_sender),
+            room_event_channel_capacity: 100,
             _room_receiver: Arc::new(Mutex::new(room_receiver)),
         }
+    }
+
+    /// Sets the capacity of the internal room event channel.
+    ///
+    /// This method allows you to adjust the buffer size (capacity) of the channel used
+    /// for processing room-related events. Changing the capacity will create a new channel,
+    /// replacing the existing sender and receiver.
+    ///
+    /// This may be useful for scaling the server based on anticipated event volume.
+    ///
+    /// # Parameters
+    ///
+    /// - `capacity`: The maximum number of room events that can be buffered in the channel.
+    ///
+    /// # Note
+    ///
+    /// Changing the channel replaces both the sender and receiver, so any outstanding
+    /// events in the old channel will be dropped.
+    pub fn set_room_event_channel_capacity(&mut self, capacity: usize) {
+        self.room_event_channel_capacity = capacity;
+
+        let (room_sender, room_receiver) = tokio::sync::mpsc::channel(capacity);
+        self.room_sender = Arc::new(room_sender);
+        self._room_receiver = Arc::new(Mutex::new(room_receiver));
     }
 
     /// Registers a handler for new connections.
@@ -508,7 +535,8 @@ impl Wynd<TcpStream> {
         self.addr = listener.local_addr().unwrap();
 
         // Create the room event processor channel
-        let (room_sender, room_receiver) = tokio::sync::mpsc::channel::<RoomEvents<TcpStream>>(100);
+        let (room_sender, room_receiver) =
+            tokio::sync::mpsc::channel::<RoomEvents<TcpStream>>(self.room_event_channel_capacity);
         self.room_sender = Arc::new(room_sender);
 
         // Spawn the room event processor task
@@ -754,7 +782,7 @@ impl Wynd<TcpStream> {
                         let mut list = Vec::new();
                         for room in rooms_guard.iter() {
                             if room.room_clients.contains_key(&client_id) {
-                                list.push(room.room_name.clone());
+                                list.push(room.room_name);
                             }
                         }
 

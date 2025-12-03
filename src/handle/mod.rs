@@ -78,8 +78,9 @@ where
     pub(crate) state: Arc<tokio::sync::Mutex<ConnState>>,
 
     pub(crate) room_sender: Arc<tokio::sync::mpsc::Sender<RoomEvents<T>>>,
-    pub(crate) response_sender: Arc<tokio::sync::mpsc::Sender<Vec<String>>>,
-    pub(crate) response_receiver: Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<Vec<String>>>>,
+    pub(crate) response_sender: Arc<tokio::sync::mpsc::Sender<Vec<&'static str>>>,
+    pub(crate) response_receiver:
+        Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<Vec<&'static str>>>>,
 }
 
 impl<T> Clone for ConnectionHandle<T>
@@ -166,7 +167,7 @@ where
     ///     });
     /// }
     /// ```
-    pub async fn joined_rooms(&self) -> Vec<String> {
+    pub async fn joined_rooms(&self) -> Vec<&'static str> {
         // Send the request
         self.room_sender
             .send(RoomEvents::ListRooms { client_id: self.id })
@@ -344,12 +345,12 @@ where
     /// - `room`: The target room name.
     ///
     /// Returns `Ok(())` if the join request was sent, otherwise an error.
-    pub async fn join(&self, room: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn join(&self, room: &'static str) -> Result<(), Box<dyn std::error::Error>> {
         self.room_sender
             .send(RoomEvents::JoinRoom {
                 client_id: self.id,
                 handle: self.clone(),
-                room_name: room.to_string(),
+                room_name: room,
             })
             .await
             .map_err(|e| {
@@ -370,11 +371,11 @@ where
     /// - `room`: The target room name.
     ///
     /// Returns `Ok(())` if the leave request was sent, otherwise an error.
-    pub async fn leave(&self, room: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn leave(&self, room: &'static str) -> Result<(), Box<dyn std::error::Error>> {
         self.room_sender
             .send(RoomEvents::LeaveRoom {
                 client_id: self.id,
-                room_name: room.to_string(),
+                room_name: room,
             })
             .await
             .map_err(|e| {
@@ -410,9 +411,9 @@ where
     ///     handle.to("my_room").text("Hello, room!").await.unwrap();
     /// };
     /// ```
-    pub fn to(&'_ self, room_name: &str) -> RoomMethods<'_, T> {
+    pub fn to(&'_ self, room_name: &'static str) -> RoomMethods<'_, T> {
         RoomMethods {
-            room_name: room_name.to_string(),
+            room_name: room_name,
             id: self.id,
             room_sender: Arc::new(&self.room_sender),
         }
