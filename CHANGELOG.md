@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.9] - 2025-12-04
+
+- Added `wynd.set_room_event_channel_capacity` method to dynamically adjust channel capacity
+- Eliminated string allocations for room names by using `&'static str` throughout the codebase
+- Reduced memory overhead by avoiding `clone()` operations on room names
+- Default room event channel capacity set to 100
+
 ## [0.9.8] - 2025-11-14
 
 - Changed server listener address from 127.0.0.1 to 0.0.0.0 to allow incoming connections on all network interfaces.
