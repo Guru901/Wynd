@@ -240,7 +240,7 @@ where
         self.room_sender
             .send(RoomEvents::EmitTextMessage {
                 client_id: self.id,
-                room_name: self.room_name.clone(),
+                room_name: self.room_name,
                 text: text.into(),
             })
             .await
@@ -269,7 +269,7 @@ where
         self.room_sender
             .send(RoomEvents::BinaryMessage {
                 client_id: self.id,
-                room_name: self.room_name.clone(),
+                room_name: self.room_name,
                 bytes: bytes.into(),
             })
             .await
@@ -298,7 +298,7 @@ where
         self.room_sender
             .send(RoomEvents::EmitBinaryMessage {
                 client_id: self.id,
-                room_name: self.room_name.clone(),
+                room_name: self.room_name,
                 bytes: bytes.into(),
             })
             .await
