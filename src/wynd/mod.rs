@@ -74,12 +74,14 @@ use crate::conn::Connection;
 use crate::handle::{Broadcaster, ConnectionHandle};
 use crate::room::{Room, RoomEvents};
 use crate::types::WyndError;
+use crate::ClientRegistery;
 use std::fmt::Debug;
 
 /// Type alias for connection ID counter.
 ///
 /// Uses an atomic counter to ensure thread-safe ID generation.
-pub(crate) type ConnectionId = AtomicU64;
+pub(crate) type ConnectionId = u64;
+pub(crate) type ConnectionIdCounter = AtomicU64;
 
 /// Type alias for boxed futures used throughout the library.
 ///
@@ -161,14 +163,15 @@ where
     ///
     /// Each connection gets a unique ID that can be used for logging,
     /// debugging, and connection management.
-    pub(crate) next_connection_id: ConnectionId,
+    pub(crate) next_connection_id: ConnectionIdCounter,
 
     /// Registry of active WebSocket connections.
     ///
     /// Each entry contains an Arc-wrapped Connection and its corresponding ConnectionHandle.
     /// Connections are added when established and should be removed when closed.
     /// Protected by a tokio Mutex for thread-safe access.
-    pub clients: Arc<tokio::sync::Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
+    pub clients: ClientRegistery<T>,
+
     /// Registry of active rooms for group messaging.
     ///
     /// Rooms allow multiple connections to participate in group communication.
@@ -245,8 +248,8 @@ where
             connection_handler: None,
             error_handler: None,
             close_handler: None,
-            next_connection_id: ConnectionId::new(0),
-            clients: Arc::new(tokio::sync::Mutex::new(Vec::new())),
+            next_connection_id: ConnectionIdCounter::new(0),
+            clients: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             addr: SocketAddr::from(([0, 0, 0, 0], 8080)),
             rooms: Arc::new(tokio::sync::Mutex::new(Vec::new())),
             room_sender: Arc::new(room_sender),
@@ -471,7 +474,10 @@ where
 
         {
             let mut clients = self.clients.lock().await;
-            clients.push((Arc::clone(&arc_connection), Arc::clone(&handle)));
+            clients.insert(
+                arc_connection.id(),
+                (Arc::clone(&arc_connection), Arc::clone(&handle)),
+            );
         }
 
         // Remove this connection from the registry when it closes
@@ -485,7 +491,7 @@ where
                 async move {
                     // Remove from clients registry
                     let mut clients = clients_registry.lock().await;
-                    clients.retain(|(_c, h)| h.id() != handle_id);
+                    clients.retain(|_c, h| h.0.id() != handle_id);
 
                     // Remove from all rooms
                     let mut rooms = rooms_registry.lock().await;
@@ -588,9 +594,7 @@ impl Wynd<TcpStream> {
     fn handle_communication(
         mut room_receiver: Receiver<RoomEvents<TcpStream>>,
         rooms: Arc<tokio::sync::Mutex<Vec<Room<TcpStream>>>>,
-        clients: Arc<
-            tokio::sync::Mutex<Vec<(Arc<Connection<TcpStream>>, Arc<ConnectionHandle<TcpStream>>)>>,
-        >,
+        clients: ClientRegistery<TcpStream>,
     ) {
         tokio::spawn(async move {
             while let Some(room_data) = room_receiver.recv().await {
@@ -789,9 +793,9 @@ impl Wynd<TcpStream> {
                         // Find the connection and send response to its dedicated channel
                         let clients_guard = clients.lock().await;
                         if let Some((_, handle)) =
-                            clients_guard.iter().find(|(_, h)| h.id() == client_id)
+                            clients_guard.iter().find(|(_, h)| h.0.id() == client_id)
                         {
-                            if let Err(e) = handle.response_sender.send(list).await {
+                            if let Err(e) = handle.1.response_sender.send(list).await {
                                 eprintln!(
                                     "Failed to send list rooms response to client {}: {}",
                                     client_id, e

@@ -7,11 +7,12 @@
 use std::{fmt::Debug, net::SocketAddr, sync::Arc};
 
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
+use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use crate::{
     conn::{ConnState, Connection},
     room::{RoomEvents, RoomMethods},
+    ClientRegistery,
 };
 
 /// Handle for interacting with a WebSocket connection.
@@ -522,8 +523,7 @@ where
 {
     pub(crate) current_client_id: u64,
     /// Shared registry of all active connections and their handles.
-    pub(crate) clients:
-        Arc<tokio::sync::Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
+    pub(crate) clients: ClientRegistery<T>,
 }
 
 impl<T> Clone for Broadcaster<T>
@@ -552,7 +552,7 @@ where
             let clients = self.clients.lock().await;
             clients
                 .iter()
-                .filter_map(|(_, h)| (h.id() != self.current_client_id).then(|| Arc::clone(h)))
+                .filter_map(|(_, h)| (h.0.id() != self.current_client_id).then(|| Arc::clone(&h.1)))
                 .collect()
         };
         for h in recipients {
@@ -571,7 +571,7 @@ where
 
         let recipients: Vec<Arc<ConnectionHandle<T>>> = {
             let clients = self.clients.lock().await;
-            clients.iter().map(|(_, h)| Arc::clone(h)).collect()
+            clients.iter().map(|(_, h)| Arc::clone(&h.1)).collect()
         };
         for h in recipients {
             if let Err(e) = h.send_text(payload.clone()).await {
@@ -588,7 +588,7 @@ where
         let payload = bytes.into();
         let recipients: Vec<Arc<ConnectionHandle<T>>> = {
             let clients = self.clients.lock().await;
-            clients.iter().map(|(_, h)| Arc::clone(h)).collect()
+            clients.iter().map(|(_, h)| Arc::clone(&h.1)).collect()
         };
         for h in recipients {
             if let Err(e) = h.send_binary(payload.clone()).await {
@@ -607,7 +607,7 @@ where
             let clients = self.clients.lock().await;
             clients
                 .iter()
-                .filter_map(|(_, h)| (h.id() != self.current_client_id).then(|| Arc::clone(h)))
+                .filter_map(|(_, h)| (h.0.id() != self.current_client_id).then(|| Arc::clone(&h.1)))
                 .collect()
         };
         for h in recipients {

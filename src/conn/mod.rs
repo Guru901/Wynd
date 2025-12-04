@@ -50,7 +50,7 @@
 //! }
 //! ```
 
-use std::{fmt::Debug, future::Future, net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, future::Future, net::SocketAddr, sync::Arc};
 
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
@@ -60,6 +60,7 @@ use crate::{
     room::RoomEvents,
     types::{BinaryMessageEvent, CloseEvent, TextMessageEvent},
     wynd::BoxFuture,
+    ClientRegistery,
 };
 
 /// Type alias for close event handlers.
@@ -192,7 +193,7 @@ where
     /// State of the current connection.
     pub(crate) state: Arc<tokio::sync::Mutex<ConnState>>,
 
-    clients: Arc<tokio::sync::Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
+    clients: ClientRegistery<T>,
 
     /// The connection handle created during connection setup.
     /// This is set by the server and used throughout the connection lifecycle.
@@ -275,7 +276,7 @@ where
             text_message_handler: Arc::new(tokio::sync::Mutex::new(None)),
             binary_message_handler: Arc::new(tokio::sync::Mutex::new(None)),
             close_handler: Arc::new(tokio::sync::Mutex::new(None)),
-            clients: Arc::new(tokio::sync::Mutex::new(Vec::new())),
+            clients: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             handle: Arc::new(tokio::sync::Mutex::new(None)),
         }
     }
@@ -284,10 +285,7 @@ where
     ///
     /// This ensures that the `Broadcaster` created from this connection's handle
     /// targets all active clients managed by the server, not a per-connection list.
-    pub(crate) fn set_clients_registry(
-        &mut self,
-        clients: Arc<tokio::sync::Mutex<Vec<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>,
-    ) {
+    pub(crate) fn set_clients_registry(&mut self, clients: ClientRegistery<T>) {
         self.clients = clients;
     }
 

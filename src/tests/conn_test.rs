@@ -3,6 +3,7 @@ mod tests {
     use crate::conn::{ConnState, Connection};
     use crate::handle::{Broadcaster, ConnectionHandle};
 
+    use std::collections::HashMap;
     use std::{
         io,
         net::SocketAddr,
@@ -13,7 +14,7 @@ mod tests {
     };
     use tokio::{
         io::{AsyncRead, AsyncWrite, ReadBuf},
-        sync::{Mutex, mpsc},
+        sync::{mpsc, Mutex},
         time::timeout,
     };
     use tokio_tungstenite::WebSocketStream;
@@ -128,7 +129,7 @@ mod tests {
             writer: Arc::new(Mutex::new(writer)),
             addr,
             broadcast: Broadcaster {
-                clients: Arc::new(Mutex::new(Vec::new())),
+                clients: Arc::new(Mutex::new(HashMap::new())),
                 current_client_id: 123,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
@@ -219,7 +220,7 @@ mod tests {
             writer: Arc::new(Mutex::new(writer)),
             addr,
             broadcast: Broadcaster {
-                clients: Arc::new(Mutex::new(Vec::new())),
+                clients: Arc::new(Mutex::new(HashMap::new())),
                 current_client_id: 123,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
@@ -253,7 +254,7 @@ mod tests {
             writer: Arc::new(Mutex::new(writer)),
             addr,
             broadcast: Broadcaster {
-                clients: Arc::new(Mutex::new(Vec::new())),
+                clients: Arc::new(Mutex::new(HashMap::new())),
                 current_client_id: 1,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
@@ -286,7 +287,7 @@ mod tests {
             writer: Arc::new(Mutex::new(writer)),
             addr,
             broadcast: Broadcaster {
-                clients: Arc::new(Mutex::new(Vec::new())),
+                clients: Arc::new(Mutex::new(HashMap::new())),
                 current_client_id: 1,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
@@ -317,7 +318,7 @@ mod tests {
             writer: Arc::new(Mutex::new(writer)),
             addr,
             broadcast: Broadcaster {
-                clients: Arc::new(Mutex::new(Vec::new())),
+                clients: Arc::new(Mutex::new(HashMap::new())),
                 current_client_id: 1,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),
@@ -400,7 +401,7 @@ mod tests {
             writer: Arc::new(Mutex::new(writer)),
             addr,
             broadcast: Broadcaster {
-                clients: Arc::new(Mutex::new(Vec::new())),
+                clients: Arc::new(Mutex::new(HashMap::new())),
                 current_client_id: 1,
             },
             state: Arc::new(Mutex::new(ConnState::OPEN)),

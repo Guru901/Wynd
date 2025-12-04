@@ -77,6 +77,10 @@
 //!
 //! MIT License - see LICENSE file for details.
 
+use std::{collections::HashMap, sync::Arc};
+
+use crate::{conn::Connection, handle::ConnectionHandle, wynd::ConnectionId};
+
 /// WebSocket connection management and event handling.
 ///
 /// This module provides the core connection types and event handling mechanisms
@@ -110,3 +114,6 @@ pub mod handle;
 /// Provides primitives for joining/leaving rooms and broadcasting text/binary
 /// messages to all members in a room.
 pub mod room;
+
+pub(crate) type ClientRegistery<T> =
+    Arc<tokio::sync::Mutex<HashMap<ConnectionId, (Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>;
