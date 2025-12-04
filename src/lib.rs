@@ -87,6 +87,10 @@ use crate::{conn::Connection, handle::ConnectionHandle, wynd::ConnectionId};
 /// for managing individual WebSocket connections.
 pub mod conn;
 
+#[cfg(feature = "bench")]
+/// Utilities used exclusively by the Criterion benchmarks.
+pub mod bench_support;
+
 /// Internal test utilities and integration tests.
 mod tests;
 

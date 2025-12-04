@@ -10,7 +10,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use crate::{
-    conn::{ConnState, Connection},
+    conn::ConnState,
     room::{RoomEvents, RoomMethods},
     ClientRegistery,
 };
@@ -332,10 +332,19 @@ where
     where
         S: Into<String>,
     {
-        let text = text.into();
-        let mut writer = self.writer.lock().await;
-        futures::SinkExt::send(&mut *writer, Message::Text(text.into())).await?;
-        Ok(())
+        #[cfg(feature = "bench")]
+        {
+            let _ = text.into();
+            return Ok(());
+        }
+
+        #[cfg(not(feature = "bench"))]
+        {
+            let text = text.into();
+            let mut writer = self.writer.lock().await;
+            futures::SinkExt::send(&mut *writer, Message::Text(text.into())).await?;
+            Ok(())
+        }
     }
 
     /// Joins the specified room.
@@ -459,9 +468,18 @@ where
     /// }
     /// ```
     pub async fn send_binary(&self, data: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
-        let mut writer = self.writer.lock().await;
-        futures::SinkExt::send(&mut *writer, Message::Binary(data.into())).await?;
-        Ok(())
+        #[cfg(feature = "bench")]
+        {
+            let _ = data;
+            return Ok(());
+        }
+
+        #[cfg(not(feature = "bench"))]
+        {
+            let mut writer = self.writer.lock().await;
+            futures::SinkExt::send(&mut *writer, Message::Binary(data.into())).await?;
+            Ok(())
+        }
     }
 
     /// Closes the WebSocket connection gracefully.
