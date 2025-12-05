@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.10] - 2025-12-05
+
+- Added benchmarks
+- Switched to Hashmap for clients from vectors making performance better
+
 ## [0.9.9] - 2025-12-04
 
 - Added `wynd.set_room_event_channel_capacity` method to dynamically adjust channel capacity
