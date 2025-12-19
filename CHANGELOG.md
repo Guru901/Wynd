@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.9.11] - 2025-12-19
+
+- Fixed broken ripress integration
+
 ## [0.9.10] - 2025-12-05
 
 - Added benchmarks

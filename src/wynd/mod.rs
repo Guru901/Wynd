@@ -974,7 +974,10 @@ impl Wynd<WithRipress> {
 
                             {
                                 let mut clients = wynd_clone.clients.lock().await;
-                                clients.push((Arc::clone(&arc_connection), Arc::clone(&handle)));
+                                clients.insert(
+                                    arc_connection.id(),
+                                    (Arc::clone(&arc_connection), Arc::clone(&handle)),
+                                );
                             }
 
                             // Remove this connection from the registry when it closes
@@ -990,7 +993,7 @@ impl Wynd<WithRipress> {
                                         // Remove from clients registry first
                                         {
                                             let mut clients = clients_registry.lock().await;
-                                            clients.retain(|(_c, h)| h.id() != handle_id);
+                                            clients.retain(|_c, h| h.0.id() != handle_id);
                                         }
                                         // Drop the clients lock before acquiring rooms lock to avoid deadlocks
 
