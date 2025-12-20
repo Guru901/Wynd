@@ -1019,10 +1019,6 @@ impl Wynd<WithRipress> {
                                     error_handler(crate::types::WyndError::new(e.to_string()))
                                         .await;
                                 }
-                            } else {
-                                eprintln!(
-                                    "[DEBUG] WebSocket connection handling completed successfully"
-                                );
                             }
                         });
                         // Return the response immediately - this must be sent before the upgrade future resolves

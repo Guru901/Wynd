@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.9.12] - 2025-12-20
+
+- Removed debug print statements
+
 ## [0.9.11] - 2025-12-19
 
 - Fixed broken ripress integration
