@@ -102,7 +102,6 @@ async fn main() {
 - **Async by Design**: Full async/await support with Tokio runtime
 - **Concurrent Connections**: Each connection runs in its own task
 - **Efficient Message Handling**: Minimal overhead for message processing
-- **Memory Efficient**: Smart connection management and cleanup
 
 ## Contributing
 
