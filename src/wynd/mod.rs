@@ -622,9 +622,11 @@ where
             Err(err) => {
                 let state = handle.state().await;
                 if state == ConnState::OPEN || state == ConnState::CONNECTING {
-                    let _ = handle.send_text(err.clone()).await;
+                    let _ = handle.send_text("Connection rejected by server".to_string()).await;
                     let _ = handle.close().await;
                 }
+                // Log the actual error for debugging
+                eprintln!("Middleware error: {}", err);
                 return Err(err.into());
             }
             Ok((final_conn, final_handle)) => {
