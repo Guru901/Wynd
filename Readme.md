@@ -11,6 +11,7 @@ A simple, fast, and developer-friendly WebSocket library for Rust.
 - **🚀 Simple API**: Easy-to-use event-driven API with async/await support
 - **⚡ High Performance**: Built on Tokio for excellent async performance
 - **🛡️ Type Safety**: Strongly typed message events and error handling
+- **🧩 Middleware Support**: Plug in async middleware for authentication, logging, rate-limiting, and more
 - **🔧 Developer Experience**: Comprehensive documentation and examples
 - **🔄 Connection Management**: Automatic connection lifecycle management
 - **📡 Real-time Ready**: Perfect for chat apps, games, and live dashboards
@@ -26,7 +27,7 @@ Backend: Wynd, Ripress, or both
 
 Frontend: React, Svelte, or none
 
-Extras: Out-of-the-box WebSocket + HTTP support
+Extras: Out-of-the-box WebSocket + HTTP support, and full middleware capability (authentication, logging, etc.)
 
 This means you can quickly bootstrap a real-time full-stack project (Rust backend + modern frontend) or just a backend-only Wynd project.
 
@@ -45,6 +46,21 @@ use wynd::wynd::{Wynd, Standalone};
 async fn main() {
     let mut wynd: Wynd<Standalone> = Wynd::new();
 
+    wynd.use_middleware(|conn, handle, next| async move {
+        println!("Middleware 1");
+        if handle.id() % 2 == 0 {
+            return Err(String::from("Not Authorised"));
+        } else {
+            handle.send_text("Hello").await.unwrap();
+            return Ok(next.call(conn, handle).await.unwrap());
+        }
+    });
+
+    wynd.use_middleware(|conn, handle, next| async move {
+        println!("Middleware 2");
+        Ok(next.call(conn, handle).await.unwrap())
+    });
+
     wynd.on_connection(|conn| async move {
         conn.on_text(|msg, handle| async move {
             let _ = handle.send_text(&format!("Echo: {}", msg.data)).await;
@@ -59,6 +75,23 @@ async fn main() {
 }
 ```
 
+## Middleware
+
+Wynd supports asynchronous middleware, making it easy to add authentication, logging, rate-limiting, and other cross-cutting concerns. Middleware functions run for every new connection before your event handlers.
+
+Example: Reject unauthenticated users and log connections
+
+```rust
+wynd.use_middleware(|conn, handle, next| async move {
+    if !is_authenticated(&handle) {
+        handle.send_text("Not Authorized").await.unwrap();
+        return Err("Not Authorized".to_string());
+    }
+    println!("Accepted connection from {}", handle.id());
+    Ok(next.call(conn, handle).await.unwrap())
+});
+```
+
 ## HTTP + WebSocket Integration
 
 Enable the `with-ripress` feature to serve both HTTP and WebSocket on the same port:
@@ -71,6 +104,11 @@ use wynd::wynd::{Wynd, WithRipress};
 async fn main() {
     let mut wynd: Wynd<WithRipress> = Wynd::new();
     let mut app = App::new();
+
+    wynd.use_middleware(|conn, handle, next| async move {
+        println!("Middleware for WS+HTTP: Conn ID {}", handle.id());
+        Ok(next.call(conn, handle).await.unwrap())
+    });
 
     wynd.on_connection(|conn| async move {
         conn.on_text(|event, handle| async move {
@@ -102,6 +140,7 @@ async fn main() {
 - **Async by Design**: Full async/await support with Tokio runtime
 - **Concurrent Connections**: Each connection runs in its own task
 - **Efficient Message Handling**: Minimal overhead for message processing
+- **Zero-Cost Middleware**: Add as many middleware as you like with minimal overhead
 
 ## Contributing
 

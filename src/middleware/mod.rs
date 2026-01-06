@@ -15,6 +15,14 @@ pub type MiddlewareHandler<T> = Arc<
         + 'static,
 >;
 
+/// Middleware struct that wraps a middleware handler function.
+///
+/// # Type Parameters
+/// - `T`: The type of the underlying connection stream (e.g., `TcpStream`).
+///
+/// `Middleware` enables users to implement custom logic for connections
+/// by chaining asynchronous handler functions which receive the connection,
+/// connection handle, and the next middleware in sequence.
 pub struct Middleware<T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
@@ -47,6 +55,14 @@ where
     }
 }
 
+/// Represents the "next" middleware in the chain.
+///
+/// The `Next<T>` type encapsulates the mechanism for executing the next middleware
+/// handler in the processing chain for a connection. It allows each middleware
+/// to optionally call the next handler, or terminate the chain early.
+///
+/// # Type Parameters
+/// - `T`: The type of the underlying connection stream (e.g., `TcpStream`).
 pub struct Next<T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
@@ -99,6 +115,20 @@ where
         Self { next_fn: None }
     }
 
+    /// Calls the next middleware function in the chain.
+    ///
+    /// This method invokes the stored middleware function (`next_fn`), passing the connection and handle forward.
+    /// If `next_fn` is `None` (i.e., this is the end of the middleware chain), it simply returns the current connection and handle.
+    ///
+    /// # Arguments
+    ///
+    /// * `conn` - An [`Arc`] pointing to the current [`Connection<T>`].
+    /// * `handle` - An [`Arc`] pointing to the current [`ConnectionHandle<T>`].
+    ///
+    /// # Returns
+    ///
+    /// * [`Ok((Arc<Connection<T>>, Arc<ConnectionHandle<T>>))`] on success, carrying the (possibly updated) connection and handle.
+    /// * [`Err(String)`] if an error occurs within the middleware.
     pub async fn call(
         &self,
         conn: Arc<Connection<T>>,

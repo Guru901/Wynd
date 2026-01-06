@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.10.0] - 2026-01-06
+
+- Added middleware support, take a look at readme for more details.
+
 ## [0.9.12] - 2025-12-20
 
 - Removed debug print statements
