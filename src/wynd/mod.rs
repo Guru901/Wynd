@@ -70,8 +70,9 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 use tokio_tungstenite::accept_async;
 
-use crate::conn::Connection;
+use crate::conn::{ConnState, Connection};
 use crate::handle::{Broadcaster, ConnectionHandle};
+use crate::middleware::{self, Middleware, Next};
 use crate::room::{Room, RoomEvents};
 use crate::types::WyndError;
 use crate::ClientRegistery;
@@ -176,12 +177,14 @@ where
     ///
     /// Rooms allow multiple connections to participate in group communication.
     /// Protected by a tokio Mutex for thread-safe access.
-    pub rooms: Arc<tokio::sync::Mutex<Vec<Room<T>>>>,
+    pub(crate) rooms: Arc<tokio::sync::Mutex<Vec<Room<T>>>>,
 
     /// Channel for receiving room events from all connections.
     /// This is used by the room event processor task.
     room_sender: Arc<tokio::sync::mpsc::Sender<RoomEvents<T>>>,
     _room_receiver: Arc<Mutex<tokio::sync::mpsc::Receiver<RoomEvents<T>>>>,
+
+    middlewares: Option<Middleware<T>>,
 }
 
 impl<T> Debug for Wynd<T>
@@ -245,6 +248,7 @@ where
         let (room_sender, room_receiver) = tokio::sync::mpsc::channel(100);
 
         Self {
+            middlewares: None,
             connection_handler: None,
             error_handler: None,
             close_handler: None,
@@ -280,6 +284,20 @@ where
         let (room_sender, room_receiver) = tokio::sync::mpsc::channel(capacity);
         self.room_sender = Arc::new(room_sender);
         self._room_receiver = Arc::new(Mutex::new(room_receiver));
+    }
+
+    pub fn use_middleware<F, Fut>(&mut self, middleware: F)
+    where
+        F: Fn(Arc<Connection<T>>, Arc<ConnectionHandle<T>>, Next<T>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>), String>>
+            + Send
+            + 'static,
+    {
+        let middleware = Middleware {
+            handler: Box::new(move |conn, handle, next| Box::pin(middleware(conn, handle, next))),
+        };
+
+        self.middlewares = Some(middleware);
     }
 
     /// Registers a handler for new connections.
@@ -512,8 +530,31 @@ where
             })
             .await;
 
-        if let Some(ref handler) = self.connection_handler {
-            handler(arc_connection).await;
+        if let Some(middleware) = &self.middlewares {
+            let result = middleware
+                .handle(Arc::clone(&arc_connection), Arc::clone(&handle))
+                .await;
+
+            if result.is_err() {
+                let err = result.unwrap_err();
+                let state = handle.state().await;
+                if state == ConnState::OPEN || state == ConnState::CONNECTING {
+                    handle.send_text(err).await.unwrap();
+                    handle.close().await.unwrap();
+                }
+            } else {
+                let (conn, handle) = result.unwrap();
+
+                if handle.state().await == ConnState::CLOSED
+                    || handle.state().await == ConnState::CLOSING
+                {
+                    return Ok(());
+                }
+
+                if let Some(ref handler) = self.connection_handler {
+                    handler(conn).await;
+                }
+            }
         }
 
         // The connection is now set up and will be managed by its own message loop

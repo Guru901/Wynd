@@ -222,7 +222,7 @@ where
 /// - `CLOSED`: The connection has been closed and cannot be used.
 /// - `CONNECTING`: The connection is in the process of being established.
 /// - `CLOSING`: The connection is in the process of closing.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ConnState {
     /// The connection is open and active.
     OPEN,
