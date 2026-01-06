@@ -301,7 +301,7 @@ where
     ///
     /// ```rust
     /// use wynd::wynd::{Wynd, Standalone};
-    /// use wynd::middleware::Next;
+    /// use wynd::Next;
     ///
     /// let mut wynd: Wynd<Standalone> = Wynd::new();
     ///
@@ -622,7 +622,9 @@ where
             Err(err) => {
                 let state = handle.state().await;
                 if state == ConnState::OPEN || state == ConnState::CONNECTING {
-                    let _ = handle.send_text(err.clone()).await;
+                    let _ = handle
+                        .send_text("Connection rejected by server".to_string())
+                        .await;
                     let _ = handle.close().await;
                 }
                 return Err(err.into());
@@ -1149,8 +1151,12 @@ impl Wynd<WithRipress> {
                                         let _ = handle.close().await;
                                     }
                                     if let Some(ref error_handler) = wynd_clone.error_handler {
-                                        error_handler(crate::types::WyndError::new(err)).await;
+                                        let _ = error_handler(crate::types::WyndError::new(
+                                            err.clone(),
+                                        ))
+                                        .await;
                                     }
+                                    eprintln!("Middleware error: {}", err);
                                     return;
                                 }
                                 Ok((final_conn, final_handle)) => {
