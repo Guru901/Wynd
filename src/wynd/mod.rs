@@ -184,7 +184,7 @@ where
     room_sender: Arc<tokio::sync::mpsc::Sender<RoomEvents<T>>>,
     _room_receiver: Arc<Mutex<tokio::sync::mpsc::Receiver<RoomEvents<T>>>>,
 
-    middlewares: Vec<Middleware<T>>,
+    pub(crate) middlewares: Vec<Middleware<T>>,
 }
 
 impl<T> Debug for Wynd<T>

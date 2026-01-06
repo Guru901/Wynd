@@ -9,10 +9,19 @@ touch main.rs
 echo '
 use tokio::net::TcpStream;
 use wynd::wynd::Wynd;
+use wynd::Next;
 
 #[tokio::main]
 async fn main() {
     let mut wynd: Wynd<TcpStream> = Wynd::new();
+
+    // Simple pass-through middleware used by tests to verify the middleware pipeline.
+    // It logs the connection and forwards control to the next middleware/handler.
+    wynd
+        .use_middleware(|conn, handle, next: Next<TcpStream>| async move {
+            println!("Middleware executed for connection {}", conn.id());
+            next.call(conn, handle).await
+        });
 
     wynd.on_connection(|conn| async move {
         conn.on_open(|handle| async move {
@@ -34,11 +43,12 @@ async fn main() {
         });
     });
 
-    wynd.listen(3000, || {
-        println!("Server listening on port 3000");
-    })
-    .await
-    .unwrap();
+    wynd
+        .listen(3000, || {
+            println!("Server listening on port 3000");
+        })
+        .await
+        .unwrap();
 }
 ' > main.rs
 cargo run &  # Start server in background
