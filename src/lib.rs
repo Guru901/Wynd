@@ -121,5 +121,6 @@ pub mod room;
 
 pub(crate) type ClientRegistery<T> =
     Arc<tokio::sync::Mutex<HashMap<ConnectionId, (Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>;
-
 pub(crate) mod middleware;
+
+pub use middleware::{Middleware, Next};
