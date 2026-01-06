@@ -184,7 +184,7 @@ where
     room_sender: Arc<tokio::sync::mpsc::Sender<RoomEvents<T>>>,
     _room_receiver: Arc<Mutex<tokio::sync::mpsc::Receiver<RoomEvents<T>>>>,
 
-    middlewares: Option<Middleware<T>>,
+    middlewares: Vec<Middleware<T>>,
 }
 
 impl<T> Debug for Wynd<T>
@@ -248,7 +248,7 @@ where
         let (room_sender, room_receiver) = tokio::sync::mpsc::channel(100);
 
         Self {
-            middlewares: None,
+            middlewares: Vec::new(),
             connection_handler: None,
             error_handler: None,
             close_handler: None,
@@ -286,6 +286,32 @@ where
         self._room_receiver = Arc::new(Mutex::new(room_receiver));
     }
 
+    /// Registers a middleware function to be executed for each new connection.
+    ///
+    /// Middlewares are executed in the order they are registered, before the connection
+    /// handler is called. Each middleware receives the connection, handle, and a `Next`
+    /// object that can be used to call the next middleware in the chain.
+    ///
+    /// ## Parameters
+    ///
+    /// - `middleware`: An async closure that takes a connection, handle, and Next, and returns
+    ///   a result indicating whether to proceed or reject the connection
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::{Wynd, Standalone};
+    /// use wynd::middleware::Next;
+    ///
+    /// let mut wynd: Wynd<Standalone> = Wynd::new();
+    ///
+    /// wynd.use_middleware(|conn, handle, next: Next<Standalone>| async move {
+    ///     // Do some validation or modification
+    ///     println!("Middleware executing for connection {}", conn.id());
+    ///     // Call the next middleware
+    ///     next.call(conn, handle).await
+    /// });
+    /// ```
     pub fn use_middleware<F, Fut>(&mut self, middleware: F)
     where
         F: Fn(Arc<Connection<T>>, Arc<ConnectionHandle<T>>, Next<T>) -> Fut + Send + Sync + 'static,
@@ -294,10 +320,10 @@ where
             + 'static,
     {
         let middleware = Middleware {
-            handler: Box::new(move |conn, handle, next| Box::pin(middleware(conn, handle, next))),
+            handler: Arc::new(move |conn, handle, next| Box::pin(middleware(conn, handle, next))),
         };
 
-        self.middlewares = Some(middleware);
+        self.middlewares.push(middleware);
     }
 
     /// Registers a handler for new connections.
@@ -430,6 +456,62 @@ where
     /// ```
     // listen is only meaningful when T = TcpStream; provided in a specialized impl below
 
+    /// Executes the middleware chain for a connection.
+    ///
+    /// This method builds a chain of middleware handlers where each middleware
+    /// can call `next.call()` to proceed to the next middleware in the chain.
+    ///
+    /// ## Parameters
+    ///
+    /// - `conn`: The connection to process through the middleware chain
+    /// - `handle`: The connection handle to process through the middleware chain
+    ///
+    /// ## Returns
+    ///
+    /// Returns the final connection and handle after all middlewares have processed,
+    /// or an error if any middleware fails.
+    async fn execute_middleware_chain(
+        &self,
+        conn: Arc<Connection<T>>,
+        handle: Arc<ConnectionHandle<T>>,
+    ) -> Result<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>), String> {
+        if self.middlewares.is_empty() {
+            return Ok((conn, handle));
+        }
+
+        // Build the middleware chain from the end backwards
+        // Start with a final Next that just returns the connection/handle
+        let mut next = middleware::Next::finalize();
+
+        // Clone middlewares into Arc for sharing across closures
+        let middlewares_arc = Arc::new(self.middlewares.clone());
+        let middleware_count = middlewares_arc.len();
+
+        // Build the chain backwards: each middleware's Next calls the previous one
+        for i in (0..middleware_count).rev() {
+            let current_next = next.clone();
+            let middlewares_clone = Arc::clone(&middlewares_arc);
+            let middleware_index = i;
+            next = middleware::Next::new(Arc::new(move |conn, handle| {
+                let current_next = current_next.clone();
+                let middlewares_clone = Arc::clone(&middlewares_clone);
+                let middleware_index = middleware_index;
+                Box::pin(async move {
+                    // Call the middleware at the current index
+                    if middleware_index < middlewares_clone.len() {
+                        let middleware = &middlewares_clone[middleware_index];
+                        middleware.handle(conn, handle, current_next).await
+                    } else {
+                        current_next.call(conn, handle).await
+                    }
+                })
+            }));
+        }
+
+        // Execute the first middleware in the chain
+        next.call(conn, handle).await
+    }
+
     /// This method performs the WebSocket handshake and creates a `Connection`
     /// instance for the new connection. It then calls the connection handler
     /// if one is registered.
@@ -530,29 +612,28 @@ where
             })
             .await;
 
-        if let Some(middleware) = &self.middlewares {
-            let result = middleware
-                .handle(Arc::clone(&arc_connection), Arc::clone(&handle))
-                .await;
+        // Execute middleware chain
+        let middleware_result = self
+            .execute_middleware_chain(Arc::clone(&arc_connection), Arc::clone(&handle))
+            .await;
 
-            if result.is_err() {
-                let err = result.unwrap_err();
+        match middleware_result {
+            Err(err) => {
                 let state = handle.state().await;
                 if state == ConnState::OPEN || state == ConnState::CONNECTING {
-                    handle.send_text(err).await.unwrap();
-                    handle.close().await.unwrap();
+                    let _ = handle.send_text(err.clone()).await;
+                    let _ = handle.close().await;
                 }
-            } else {
-                let (conn, handle) = result.unwrap();
-
-                if handle.state().await == ConnState::CLOSED
-                    || handle.state().await == ConnState::CLOSING
-                {
+                return Err(err.into());
+            }
+            Ok((final_conn, final_handle)) => {
+                let state = final_handle.state().await;
+                if state == ConnState::CLOSED || state == ConnState::CLOSING {
                     return Ok(());
                 }
 
                 if let Some(ref handler) = self.connection_handler {
-                    handler(conn).await;
+                    handler(final_conn).await;
                 }
             }
         }
@@ -1051,14 +1132,44 @@ impl Wynd<WithRipress> {
                                 });
                             }
 
-                            // Handle the WebSocket connection - this will start the message loop
-                            if let Err(e) = wynd_clone
-                                .handle_websocket_connection(Arc::clone(&arc_connection))
-                                .await
-                            {
-                                if let Some(ref error_handler) = wynd_clone.error_handler {
-                                    error_handler(crate::types::WyndError::new(e.to_string()))
-                                        .await;
+                            // Execute middleware chain
+                            let middleware_result = wynd_clone
+                                .execute_middleware_chain(
+                                    Arc::clone(&arc_connection),
+                                    Arc::clone(&handle),
+                                )
+                                .await;
+
+                            match middleware_result {
+                                Err(err) => {
+                                    let state = handle.state().await;
+                                    if state == ConnState::OPEN || state == ConnState::CONNECTING {
+                                        let _ = handle.send_text(err.clone()).await;
+                                        let _ = handle.close().await;
+                                    }
+                                    if let Some(ref error_handler) = wynd_clone.error_handler {
+                                        error_handler(crate::types::WyndError::new(err)).await;
+                                    }
+                                    return;
+                                }
+                                Ok((final_conn, final_handle)) => {
+                                    let state = final_handle.state().await;
+                                    if state == ConnState::CLOSED || state == ConnState::CLOSING {
+                                        return;
+                                    }
+
+                                    // ✅ ALL middlewares passed successfully
+                                    // Handle the WebSocket connection - this will start the message loop
+                                    if let Err(e) =
+                                        wynd_clone.handle_websocket_connection(final_conn).await
+                                    {
+                                        if let Some(ref error_handler) = wynd_clone.error_handler {
+                                            error_handler(crate::types::WyndError::new(
+                                                e.to_string(),
+                                            ))
+                                            .await;
+                                        }
+                                    }
                                 }
                             }
                         });
