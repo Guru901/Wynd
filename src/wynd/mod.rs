@@ -312,7 +312,7 @@ where
     ///     next.call(conn, handle).await
     /// });
     /// ```
-    pub fn use_middleware<F, Fut>(&mut self, middleware: F)
+    pub fn use_middleware<F, Fut>(&mut self, middleware: F) -> &mut Self
     where
         F: Fn(Arc<Connection<T>>, Arc<ConnectionHandle<T>>, Next<T>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<(Arc<Connection<T>>, Arc<ConnectionHandle<T>>), String>>
@@ -324,6 +324,7 @@ where
         };
 
         self.middlewares.push(middleware);
+        self
     }
 
     /// Registers a handler for new connections.
