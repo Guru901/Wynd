@@ -627,6 +627,8 @@ where
                         .await;
                     let _ = handle.close().await;
                 }
+                // Log the actual error for debugging
+                eprintln!("Middleware error: {}", err);
                 return Err(err.into());
             }
             Ok((final_conn, final_handle)) => {
