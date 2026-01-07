@@ -265,7 +265,6 @@ where
         Self {
             middlewares: Vec::new(),
             connection_handler: None,
-            request_handler: None,
             error_handler: None,
             close_handler: None,
             next_connection_id: ConnectionIdCounter::new(0),
@@ -275,6 +274,8 @@ where
             room_sender: Arc::new(room_sender),
             room_event_channel_capacity: 100,
             _room_receiver: Arc::new(Mutex::new(room_receiver)),
+            #[cfg(feature = "with-ripress")]
+            request_handler: None,
         }
     }
 
@@ -1177,14 +1178,6 @@ impl Wynd<WithRipress> {
                                     }
                                 });
                             }
-
-                            // Execute middleware chain
-                            // let middleware_result = wynd_clone
-                            //     .execute_middleware_chain(
-                            //         Arc::clone(&arc_connection),
-                            //         Arc::clone(&handle),
-                            //     )
-                            //     .await;
 
                             let middleware_result = wynd_clone
                                 .execute_middleware_chain(

@@ -125,4 +125,5 @@ pub(crate) mod middleware;
 
 pub use middleware::{Middleware, Next};
 
+#[cfg(feature = "with-ripress")]
 pub mod context;
