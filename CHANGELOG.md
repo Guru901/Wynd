@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.11.0] - 2026-01-07
+
+- Request Handler Support: Introduced HTTP-level request interception capability for Wynd<WithRipress> via the request_handler field, allowing custom request handling before WebSocket upgrade
+- on_request Method: Added on_request<F, Fut>(&mut self, handler: F) method on Wynd<WithRipress> to register request handlers that can optionally return HTTP responses, short-circuiting WebSocket upgrade
+- Context Module (behind with-ripress feature):
+  - New Context struct exposing:
+    - Public request field: Arc<Request<Full<Bytes>>>
+    - response() method returning a ResponseBuilder for fluent response construction
+  - New ResponseBuilder<'a> struct with fluent API for building HTTP responses:
+    - status<T: Into<StatusCode>>(self, status: T) -> Self
+    - header(&mut self, key: HeaderName, value: HeaderValue) -> &mut Self
+    - header_str(&mut self, key: &str, value: &str) -> Result<&mut Self, Box<dyn std::error::Error>>
+    - version(&mut self, version: Version) -> &mut Self
+    - headers<I>(&mut self, headers: I) -> Result<&mut Self, Box<dyn std::error::Error>>
+    - content_type(&mut self, content_type: &str) -> Result<&mut Self, Box<dyn std::error::Error>>
+    - content_length(&mut self, len: u64) -> Result<&mut Self, Box<dyn std::error::Error>>
+    - location(&mut self, location: &str) -> Result<&mut Self, Box<dyn std::error::Error>>
+    - body<B: Into<Bytes>>(self, body: B) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>>
+
 ## [0.10.0] - 2026-01-06
 
 - Added middleware support, take a look at readme for more details.
