@@ -1042,8 +1042,11 @@ impl Wynd<WithRipress> {
             let mut req = Arc::new(req);
             Box::pin(async move {
                 if let Some(ref handler) = wynd.request_handler {
+                    use hyper_tungstenite::hyper::Response;
+
                     let response = handler(Context {
                         request: Arc::clone(&req),
+                        response: Response::builder(),
                     })
                     .await;
 
