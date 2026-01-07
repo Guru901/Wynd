@@ -169,7 +169,6 @@ where
     /// }
     /// ```
     pub async fn joined_rooms(&self) -> Vec<&'static str> {
-        // Send the request
         self.room_sender
             .send(RoomEvents::ListRooms { client_id: self.id })
             .await
@@ -181,7 +180,6 @@ where
             })
             .unwrap();
 
-        // Wait for the response
         let mut receiver = self.response_receiver.lock().await;
         receiver.recv().await.unwrap_or_default()
     }
@@ -219,7 +217,6 @@ where
     /// }
     /// ```
     pub async fn leave_all_rooms(&self) -> Result<(), Box<dyn std::error::Error>> {
-        // Send the request
         self.room_sender
             .send(RoomEvents::LeaveAllRooms { client_id: self.id })
             .await
@@ -522,7 +519,6 @@ where
     /// }
     /// ```
     pub async fn close(&self) -> Result<(), Box<dyn std::error::Error>> {
-        // Mark state as CLOSING to reflect graceful shutdown in progress
         {
             let mut s = self.state.lock().await;
             *s = ConnState::CLOSING;

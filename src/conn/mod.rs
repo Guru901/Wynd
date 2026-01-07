@@ -430,12 +430,10 @@ where
         let mut open_handler = self.open_handler.lock().await;
         *open_handler = Some(Box::new(move |handle| Box::pin(handler(handle))));
 
-        // Acquire or synthesize a handle if not set (e.g., in tests)
         let handle = {
             if let Some(h) = self.handle.lock().await.clone() {
                 h
             } else {
-                // Fallback handle uses this connection's writer/state and an ephemeral room channel
                 let (tx, _rx) = tokio::sync::mpsc::channel::<RoomEvents<T>>(1);
                 let (response_tx, response_rx) = tokio::sync::mpsc::channel::<Vec<&'static str>>(1);
                 Arc::new(crate::handle::ConnectionHandle {
@@ -463,9 +461,7 @@ where
         let state_clone = Arc::clone(&self.state);
 
         tokio::spawn(async move {
-            // Call open handler
             {
-                // Transition shared state to OPEN as the connection is now ready
                 {
                     let mut s = state_clone.lock().await;
                     *s = ConnState::OPEN;
@@ -486,7 +482,6 @@ where
                 }
             }
 
-            // Start message loop
             Self::message_loop(
                 handle_clone,
                 text_message_handler_clone,
