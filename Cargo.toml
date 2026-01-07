@@ -35,7 +35,7 @@ ripress = { version = "*", features = ["with-wynd"], optional = true }
 criterion = { version = "0.5", features = ["async_tokio"] }
 
 [features]
-default = []
+default = ['with-ripress']
 with-ripress = ["dep:hyper-tungstenite", "dep:hyper-util", "dep:http-body-util", "dep:ripress"]
 bench = []
 

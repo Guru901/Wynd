@@ -41,7 +41,11 @@ impl<'a> ResponseBuilder<'a> {
     }
 
     /// Set a single HTTP header from string slices (convenience method)
-    pub fn header_str(&mut self, key: &str, value: &str) -> Result<&mut Self, Box<dyn std::error::Error>> {
+    pub fn header_str(
+        &mut self,
+        key: &str,
+        value: &str,
+    ) -> Result<&mut Self, Box<dyn std::error::Error>> {
         let builder = mem::take(self.builder);
         let header_name = HeaderName::from_bytes(key.as_bytes())?;
         let header_value = HeaderValue::from_bytes(value.as_bytes())?;
@@ -57,34 +61,42 @@ impl<'a> ResponseBuilder<'a> {
     }
 
     /// Set multiple headers from an iterator of string tuples
-    pub fn headers<I>(&mut self, headers: I) -> &mut Self
+    pub fn headers<I>(&mut self, headers: I) -> Result<&mut Self, Box<dyn std::error::Error>>
     where
         I: IntoIterator<Item = (&'static str, &'static str)>,
     {
         for (key, value) in headers {
-            self.header_str(key, value);
+            self.header_str(key, value)?;
         }
-        self
+        Ok(self)
     }
 
     /// Set the Content-Type header
-    pub fn content_type(&mut self, content_type: &str) -> &mut Self {
+    pub fn content_type(
+        &mut self,
+        content_type: &str,
+    ) -> Result<&mut Self, Box<dyn std::error::Error>> {
         self.header_str("content-type", content_type)
     }
 
     /// Set the Content-Length header
-    pub fn content_length(&mut self, len: u64) -> &mut Self {
+    pub fn content_length(&mut self, len: u64) -> Result<&mut Self, Box<dyn std::error::Error>> {
         self.header_str("content-length", &len.to_string())
     }
 
     /// Set the Location header (for redirects)
-    pub fn location(&mut self, location: &str) -> &mut Self {
+    pub fn location(&mut self, location: &str) -> Result<&mut Self, Box<dyn std::error::Error>> {
         self.header_str("location", location)
     }
 
     /// Build and return the final response with a body
-    pub fn body<B: Into<Bytes>>(self, body: B) -> Response<Full<Bytes>> {
+    pub fn body<B: Into<Bytes>>(
+        self,
+        body: B,
+    ) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error>> {
         let builder = mem::take(self.builder);
-        builder.body(Full::new(body.into())).unwrap()
+        builder
+            .body(Full::new(body.into()))
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
     }
 }
