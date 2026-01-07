@@ -55,8 +55,6 @@ use http_body_util::Full;
 use hyper_tungstenite::hyper;
 #[cfg(feature = "with-ripress")]
 use hyper_util::rt::TokioIo;
-#[cfg(feature = "with-ripress")]
-use ripress::res::HttpResponse;
 use std::sync::Mutex;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc::Receiver;
