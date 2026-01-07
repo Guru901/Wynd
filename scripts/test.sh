@@ -19,7 +19,6 @@ async fn main() {
     // It logs the connection and forwards control to the next middleware/handler.
     wynd
         .use_middleware(|conn, handle, next: Next<TcpStream>| async move {
-            println!("Middleware executed for connection {}", conn.id());
             next.call(conn, handle).await
         });
 
@@ -38,7 +37,6 @@ async fn main() {
         });
 
         conn.on_binary(|event, handle| async move {
-            println!("Received binary data: {} bytes", event.data.len());
             handle.send_binary(event.data.to_vec()).await.unwrap();
         });
     });
@@ -51,7 +49,7 @@ async fn main() {
         .unwrap();
 }
 ' > main.rs
-cargo run &  # Start server in background
+cargo run --features with-ripress &  # Start server in background
 SERVER_PID=$!  # Store server process ID
 
 # Ensure the server is cleaned up on script exit

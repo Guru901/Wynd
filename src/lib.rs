@@ -126,4 +126,11 @@ pub(crate) mod middleware;
 pub use middleware::{Middleware, Next};
 
 #[cfg(feature = "with-ripress")]
+/// HTTP context and response builder utilities (enabled with `with-ripress`).
+///
+/// This module provides types for working with HTTP upgrade requests, manipulating
+/// and customizing HTTP responses before upgrading to a WebSocket connection, and tools
+/// for building responses (see [`context::Context`] and [`context::ResponseBuilder`]).
+///
+/// This module is only available when the `with-ripress` feature is enabled.
 pub mod context;

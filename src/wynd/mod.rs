@@ -989,6 +989,106 @@ impl Wynd<WithRipress> {
         self.request_handler = Some(Box::new(move |context| Box::pin(handler(context))));
     }
 
+    /// Creates a request handler function for integrating Wynd with ripress.
+    ///
+    /// This method returns a closure that can be passed to `app.use_wynd()` to handle
+    /// WebSocket upgrade requests at a specific route. The handler processes incoming
+    /// HTTP requests and performs WebSocket upgrades when appropriate.
+    ///
+    /// ## Request Processing Flow
+    ///
+    /// 1. **Request Handler (Optional)**: If `on_request()` was called, the handler
+    ///    is invoked first. If it returns `Some(response)`, that response is returned
+    ///    immediately, bypassing the WebSocket upgrade. If it returns `None`, processing
+    ///    continues to the WebSocket upgrade step.
+    ///
+    /// 2. **WebSocket Validation**: The handler validates that the request contains
+    ///    the required WebSocket upgrade headers:
+    ///    - `Upgrade: websocket`
+    ///    - `Sec-WebSocket-Key`
+    ///    - `Sec-WebSocket-Version`
+    ///
+    ///    If any of these are missing, a `400 Bad Request` response is returned.
+    ///
+    /// 3. **WebSocket Upgrade**: If validation passes, the handler performs the
+    ///    WebSocket upgrade handshake and spawns an async task to handle the connection.
+    ///
+    /// 4. **Connection Setup**: The spawned task:
+    ///    - Creates a new `Connection` instance with a unique ID
+    ///    - Registers the connection in the client registry
+    ///    - Executes the middleware chain (if any middlewares are registered)
+    ///    - Calls the connection handler (if `on_connection()` was called)
+    ///
+    /// ## Return Value
+    ///
+    /// Returns a closure that implements the ripress request handler signature:
+    /// - Takes a `hyper::Request` as input
+    /// - Returns a `Future` that resolves to a `hyper::Response`
+    /// - The response is either:
+    ///   - The response from the request handler (if it returned `Some`)
+    ///   - A `400 Bad Request` if WebSocket headers are missing
+    ///   - A `500 Internal Server Error` if the request cannot be upgraded
+    ///   - The WebSocket upgrade response (status `101 Switching Protocols`)
+    ///
+    /// ## Example
+    ///
+    /// ```rust,no_run
+    /// use ripress::app::App;
+    /// use wynd::wynd::{WithRipress, Wynd};
+    /// use ripress::res::response_status::StatusCode;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd: Wynd<WithRipress> = Wynd::new();
+    ///     let mut app = App::new();
+    ///
+    ///     // Optional: Handle requests before WebSocket upgrade
+    ///     wynd.on_request(|mut context| async move {
+    ///         // Check for API key in headers
+    ///         if context.request.headers().get("api_key").is_some() {
+    ///             // Return None to proceed with WebSocket upgrade
+    ///             None
+    ///         } else {
+    ///             let mut res = context.response();
+    ///             res = res.status(StatusCode::Unauthorized);
+    ///             let res = res.body("body").unwrap();
+    ///             Some(res)
+    ///         }
+    ///     });
+    ///
+    ///     // Set up connection handlers
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_open(|handle| async move {
+    ///             println!("New connection established: {}", handle.id());
+    ///         })
+    ///         .await;
+    ///
+    ///         conn.on_text(|msg, handle| async move {
+    ///             println!("Message received: {}", msg.data);
+    ///             let _ = handle.send_text(&msg.data).await;
+    ///         });
+    ///     });
+    ///
+    ///     // Integrate with ripress
+    ///     app.use_wynd("/ws", wynd.handler());
+    ///
+    ///     app.listen(3000, || {
+    ///         println!("HTTP server listening on http://localhost:3000");
+    ///         println!("WS server listening on ws://localhost:3000/ws");
+    ///     })
+    ///     .await;
+    /// }
+    /// ```
+    ///
+    /// ## Notes
+    ///
+    /// - The handler consumes `self`, so it can only be called once per `Wynd` instance
+    /// - The returned closure is `Send + Sync + 'static` and can be safely used across
+    ///   thread boundaries
+    /// - WebSocket connections are handled asynchronously in spawned tasks, so the
+    ///   handler returns immediately after initiating the upgrade
+    /// - If middleware rejects a connection, the connection is closed and an error
+    ///   is sent to the client
     pub fn handler(
         self,
     ) -> impl Fn(
