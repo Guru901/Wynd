@@ -41,13 +41,12 @@ impl<'a> ResponseBuilder<'a> {
     }
 
     /// Set a single HTTP header from string slices (convenience method)
-    pub fn header_str(&mut self, key: &str, value: &str) -> &mut Self {
+    pub fn header_str(&mut self, key: &str, value: &str) -> Result<&mut Self, Box<dyn std::error::Error>> {
         let builder = mem::take(self.builder);
-        *self.builder = builder.header(
-            HeaderName::from_bytes(key.as_bytes()).expect("Invalid header name"),
-            HeaderValue::from_bytes(value.as_bytes()).expect("Invalid header value"),
-        );
-        self
+        let header_name = HeaderName::from_bytes(key.as_bytes())?;
+        let header_value = HeaderValue::from_bytes(value.as_bytes())?;
+        *self.builder = builder.header(header_name, header_value);
+        Ok(self)
     }
 
     /// Set the HTTP version
