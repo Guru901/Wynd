@@ -55,6 +55,8 @@ use http_body_util::Full;
 use hyper_tungstenite::hyper;
 #[cfg(feature = "with-ripress")]
 use hyper_util::rt::TokioIo;
+#[cfg(feature = "with-ripress")]
+use ripress::res::HttpResponse;
 use std::sync::Mutex;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc::Receiver;
@@ -77,6 +79,8 @@ use crate::room::{Room, RoomEvents};
 use crate::types::WyndError;
 use crate::ClientRegistery;
 use std::fmt::Debug;
+
+use crate::context::Context;
 
 /// Type alias for connection ID counter.
 ///
@@ -141,6 +145,19 @@ where
     /// It receives a `Connection` instance that can be used to set up event handlers.
     pub(crate) connection_handler:
         Option<Box<dyn Fn(Arc<Connection<T>>) -> BoxFuture<()> + Send + Sync + 'static>>,
+
+    #[cfg(feature = "with-ripress")]
+    pub(crate) request_handler: Option<
+        Box<
+            dyn Fn(
+                    Context,
+                ) -> BoxFuture<
+                    Option<hyper::Response<Full<hyper_tungstenite::hyper::body::Bytes>>>,
+                > + Send
+                + Sync
+                + 'static,
+        >,
+    >,
 
     /// The address the server is listening on.
     pub(crate) addr: SocketAddr,
@@ -250,6 +267,7 @@ where
         Self {
             middlewares: Vec::new(),
             connection_handler: None,
+            request_handler: None,
             error_handler: None,
             close_handler: None,
             next_connection_id: ConnectionIdCounter::new(0),
@@ -992,6 +1010,16 @@ impl Wynd<WithRipress> {
     ///     .await;
     /// }
     /// ```
+    ///
+    pub fn on_request<F, Fut>(&mut self, handler: F)
+    where
+        F: Fn(Context) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Option<hyper::Response<Full<hyper_tungstenite::hyper::body::Bytes>>>>
+            + Send
+            + 'static,
+    {
+        self.request_handler = Some(Box::new(move |context| Box::pin(handler(context))));
+    }
 
     pub fn handler(
         self,
@@ -1009,9 +1037,21 @@ impl Wynd<WithRipress> {
            + Sync
            + 'static {
         let wynd = Arc::new(self);
-        move |req| {
+        move |req: hyper::Request<Full<hyper_tungstenite::hyper::body::Bytes>>| {
             let wynd = Arc::clone(&wynd);
+            let mut req = Arc::new(req);
             Box::pin(async move {
+                if let Some(ref handler) = wynd.request_handler {
+                    let response = handler(Context {
+                        request: Arc::clone(&req),
+                    })
+                    .await;
+
+                    if response.is_some() {
+                        let response = response.unwrap();
+                        return Ok(response);
+                    };
+                }
                 // Check if this is a WebSocket upgrade request
                 let is_websocket_upgrade = req
                     .headers()
@@ -1038,8 +1078,8 @@ impl Wynd<WithRipress> {
                 // We pass the request by mutable reference as the upgrade function needs to call hyper::upgrade::on()
                 // It returns WebSocketStream<hyper::upgrade::Upgraded>
                 // We need to convert this to WebSocketStream<TokioIo<hyper::upgrade::Upgraded>>
-                let mut req_for_upgrade = req;
-                match hyper_tungstenite::upgrade(&mut req_for_upgrade, None) {
+                let mut req_for_upgrade = Arc::get_mut(&mut req).unwrap();
+                match hyper_tungstenite::upgrade(req_for_upgrade, None) {
                     Ok((response, websocket_future)) => {
                         // Spawn the WebSocket handling task
                         // The response must be returned immediately so it can be sent to the client
@@ -1138,6 +1178,13 @@ impl Wynd<WithRipress> {
                             }
 
                             // Execute middleware chain
+                            // let middleware_result = wynd_clone
+                            //     .execute_middleware_chain(
+                            //         Arc::clone(&arc_connection),
+                            //         Arc::clone(&handle),
+                            //     )
+                            //     .await;
+
                             let middleware_result = wynd_clone
                                 .execute_middleware_chain(
                                     Arc::clone(&arc_connection),
