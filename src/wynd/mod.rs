@@ -78,8 +78,8 @@ use crate::types::WyndError;
 use crate::ClientRegistery;
 use std::fmt::Debug;
 
+#[cfg(feature = "with-ripress")]
 use crate::context::Context;
-
 /// Type alias for connection ID counter.
 ///
 /// Uses an atomic counter to ensure thread-safe ID generation.
