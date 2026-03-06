@@ -7,6 +7,7 @@ cd ./src
 touch main.rs
 
 echo '
+use sysinfo::{Pid, System};
 use tokio::net::TcpStream;
 use wynd::wynd::Wynd;
 use wynd::Next;
@@ -17,10 +18,9 @@ async fn main() {
 
     // Simple pass-through middleware used by tests to verify the middleware pipeline.
     // It logs the connection and forwards control to the next middleware/handler.
-    wynd
-        .use_middleware(|conn, handle, next: Next<TcpStream>| async move {
-            next.call(conn, handle).await
-        });
+    wynd.use_middleware(|conn, handle, next: Next<TcpStream>| async move {
+        next.call(conn, handle).await
+    });
 
     wynd.on_connection(|conn| async move {
         conn.on_open(|handle| async move {
@@ -32,21 +32,36 @@ async fn main() {
         .await;
 
         conn.on_text(|event, handle| async move {
+            let mut system = System::new();
+            let pid = Pid::from(std::process::id() as usize);
+            system.refresh_process(pid);
+            let mem = system.process(pid).unwrap().memory();
+            let cpu = system.process(pid).unwrap().cpu_usage();
+            const BYTES_PER_MB: f64 = 1024.0 * 1024.0;
+            println!("Memory used: {:.2} MB", mem as f64 / BYTES_PER_MB);
+            println!("CPU used: {:.2}%", cpu);
             handle.send_text(&event.data).await.unwrap();
             handle.broadcast.text(&event.data).await;
         });
 
         conn.on_binary(|event, handle| async move {
+            let mut system = System::new();
+            let pid = Pid::from(std::process::id() as usize);
+            system.refresh_process(pid);
+            let mem = system.process(pid).unwrap().memory();
+            let cpu = system.process(pid).unwrap().cpu_usage();
+            const BYTES_PER_MB: f64 = 1024.0 * 1024.0;
+            println!("Memory used: {:.2} MB", mem as f64 / BYTES_PER_MB);
+            println!("CPU used: {:.2}%", cpu);
             handle.send_binary(event.data.to_vec()).await.unwrap();
         });
     });
 
-    wynd
-        .listen(3000, || {
-            println!("Server listening on port 3000");
-        })
-        .await
-        .unwrap();
+    wynd.listen(3000, || {
+        println!("Server listening on port 3000");
+    })
+    .await
+    .unwrap();
 }
 ' > main.rs
 cargo run --features with-ripress &  # Start server in background
