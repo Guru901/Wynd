@@ -180,6 +180,15 @@ pub struct CloseEvent {
     pub reason: String,
 }
 
+impl Clone for CloseEvent {
+    fn clone(&self) -> Self {
+        CloseEvent {
+            code: self.code.clone(),
+            reason: self.reason.clone(),
+        }
+    }
+}
+
 impl CloseEvent {
     /// Creates a new close event.
     ///
