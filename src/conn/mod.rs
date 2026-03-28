@@ -57,6 +57,7 @@ use tokio_tungstenite::{
     tungstenite::{self, Message, Utf8Bytes},
     WebSocketStream,
 };
+use tungstenite::{error::UrlError, protocol::frame::coding::CloseCode, Error};
 
 use crate::{
     handle::ConnectionHandle,
@@ -766,37 +767,17 @@ where
                     eprintln!("Unhandled message type");
                 }
                 Some(Err(e)) => {
-                    let mut should_close = false;
+                    let close_code = determine_close_code(&e);
 
-                    let close_code = match &e {
-                        tungstenite::Error::Protocol(_) => {
-                            should_close = true;
-                            tungstenite::protocol::frame::coding::CloseCode::Protocol
-                        }
-                        tungstenite::Error::Utf8(e) => {
-                            if e.starts_with("�") {
-                                should_close = false;
-                            } else {
-                                should_close = true;
-                            }
-                            tungstenite::protocol::frame::coding::CloseCode::Invalid
-                        }
-                        _ => tungstenite::protocol::frame::coding::CloseCode::Protocol,
-                    };
-
-                    if should_close {
-                        if let Ok(mut w) = handle.writer.try_lock() {
-                            let _ = futures::SinkExt::send(
-                                &mut *w,
-                                Message::Close(Some(tungstenite::protocol::CloseFrame {
-                                    code: close_code,
-                                    reason: "Protocol error".into(),
-                                })),
-                            )
-                            .await;
-                        } else {
-                            break;
-                        }
+                    if let Ok(mut w) = handle.writer.try_lock() {
+                        let _ = futures::SinkExt::send(
+                            &mut *w,
+                            Message::Close(Some(tungstenite::protocol::CloseFrame {
+                                code: close_code,
+                                reason: "Error".into(),
+                            })),
+                        )
+                        .await;
                     }
 
                     eprintln!("WebSocket error: {} conn/mod.rs: 756", e);
@@ -809,5 +790,35 @@ where
                 _ => {}
             }
         }
+    }
+}
+
+fn determine_close_code(e: &Error) -> CloseCode {
+    match e {
+        Error::Utf8(_) => CloseCode::Invalid,
+
+        Error::Capacity(_) | Error::WriteBufferFull(_) => CloseCode::Size,
+
+        Error::Tls(_) => CloseCode::Tls,
+
+        Error::ConnectionClosed | Error::AlreadyClosed | Error::AttackAttempt => {
+            CloseCode::Abnormal
+        }
+
+        Error::Io(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => CloseCode::Abnormal,
+
+        Error::Protocol(_) | Error::Io(_) | Error::HttpFormat(_) => CloseCode::Protocol,
+
+        Error::Http(r) if r.status().as_u16() == 400 => CloseCode::Protocol,
+        Error::Http(_) => CloseCode::Abnormal,
+
+        Error::Url(e) => match e {
+            UrlError::TlsFeatureNotEnabled
+            | UrlError::NoHostName
+            | UrlError::EmptyHostName
+            | UrlError::UnsupportedUrlScheme
+            | UrlError::NoPathOrQuery => CloseCode::Protocol,
+            UrlError::UnableToConnect(_) => CloseCode::Abnormal,
+        },
     }
 }
