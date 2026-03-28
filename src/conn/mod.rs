@@ -53,7 +53,10 @@
 use std::{collections::HashMap, fmt::Debug, future::Future, net::SocketAddr, sync::Arc};
 
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
+use tokio_tungstenite::{
+    tungstenite::{self, Message, Utf8Bytes},
+    WebSocketStream,
+};
 
 use crate::{
     handle::ConnectionHandle,
@@ -731,29 +734,72 @@ where
                 Some(Ok(Message::Close(close_frame))) => {
                     let close_event = match close_frame {
                         Some(e) => CloseEvent::new(e.code.into(), e.reason.to_string()),
-                        None => CloseEvent::new(1005, "No status received".to_string()),
+                        None => CloseEvent::new(1005, "No status received".into()),
                     };
 
-                    // Connection closed
                     let handler_fut = {
                         let handler = close_handler.lock().await;
-                        if let Some(ref h) = *handler {
-                            Some(h(close_event))
-                        } else {
-                            None
-                        }
+                        handler.as_ref().map(|h| h(close_event.clone()))
                     };
                     if let Some(fut) = handler_fut {
                         fut.await;
                     }
-                    {
-                        let mut s = state.lock().await;
-                        *s = ConnState::CLOSED;
-                    }
+
+                    let mut w = handle.writer.lock().await;
+
+                    let _ = futures::SinkExt::send(
+                        &mut *w,
+                        Message::Close(Some(tungstenite::protocol::CloseFrame {
+                            code: tungstenite::protocol::frame::coding::CloseCode::Normal,
+                            reason: Utf8Bytes::from(close_event.reason),
+                        })),
+                    )
+                    .await;
+
+                    let _ = futures::SinkExt::flush(&mut *w).await; // <-- important
+                    drop(w);
+
+                    *state.lock().await = ConnState::CLOSED;
                     break;
                 }
+                Some(Ok(_)) => {
+                    eprintln!("Unhandled message type");
+                }
                 Some(Err(e)) => {
-                    eprintln!("WebSocket error: {}", e);
+                    let mut should_close = false;
+
+                    let close_code = match &e {
+                        tungstenite::Error::Protocol(_) => {
+                            should_close = true;
+                            tungstenite::protocol::frame::coding::CloseCode::Protocol
+                        }
+                        tungstenite::Error::Utf8(e) => {
+                            if e.starts_with("�") {
+                                should_close = false;
+                            } else {
+                                should_close = true;
+                            }
+                            tungstenite::protocol::frame::coding::CloseCode::Invalid
+                        }
+                        _ => tungstenite::protocol::frame::coding::CloseCode::Protocol,
+                    };
+
+                    if should_close {
+                        if let Ok(mut w) = handle.writer.try_lock() {
+                            let _ = futures::SinkExt::send(
+                                &mut *w,
+                                Message::Close(Some(tungstenite::protocol::CloseFrame {
+                                    code: close_code,
+                                    reason: "Protocol error".into(),
+                                })),
+                            )
+                            .await;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    eprintln!("WebSocket error: {} conn/mod.rs: 756", e);
                     {
                         let mut s = state.lock().await;
                         *s = ConnState::CLOSED;
