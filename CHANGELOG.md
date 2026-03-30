@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.1] - 2026-03-30
+
+- Made error handling better
+- Now it pass all the tests of autobahn testsuite
+
 ## [0.11.0] - 2026-01-07
 
 - Request Handler Support: Introduced HTTP-level request interception capability for Wynd<WithRipress> via the request_handler field, allowing custom request handling before WebSocket upgrade
