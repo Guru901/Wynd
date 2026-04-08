@@ -955,7 +955,9 @@ impl Wynd<TcpStream> {
                             })
                         }
 
-                        response_to.send(clients_info).unwrap();
+                        if let Err(_) = response_to.send(clients_info) {
+                            eprintln!("Failed to send ListUsers response: receiver dropped");
+                        }
                     }
                 }
             }
