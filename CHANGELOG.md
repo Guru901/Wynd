@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1] - 2026-04-08
+
+- Remove not needed code
+- Made the `wynd.clients` api better
+- Added handle.clients() function
+- Add ClientInfo function
+
 ## [0.11.1] - 2026-03-30
 
 - Made error handling better
