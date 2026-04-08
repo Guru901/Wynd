@@ -233,6 +233,34 @@ where
         Ok(())
     }
 
+    /// Returns a list of all clients connected to the server.
+    ///
+    ///
+    /// This method sends a request to the room processor and waits for the response.
+    /// It returns a vector of [`ClientInfo`] structs containing information about each client.
+    ///
+    /// ## Returns
+    ///
+    /// Returns `Ok(Vec<ClientInfo>)` if the request was sent successfully, or an error
+    /// if the send operation failed.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use wynd::wynd::{Wynd, Standalone};
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let mut wynd: Wynd<Standalone> = Wynd::new();
+    ///
+    ///     wynd.on_connection(|conn| async move {
+    ///         conn.on_open(|handle| async move {
+    ///             let _ = handle.clients().await;
+    ///         })
+    ///         .await;
+    ///     });
+    /// }
+    /// ```
     pub async fn clients(&self) -> Result<Vec<ClientInfo<T>>, std::io::Error> {
         let (tx, rx) = oneshot::channel();
 

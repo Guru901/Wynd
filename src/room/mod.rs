@@ -76,12 +76,15 @@ where
     }
 }
 
+/// Information about a client connected to the server.
 #[derive(Debug)]
 pub struct ClientInfo<T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
 {
+    /// Unique identifier for the client.
     pub id: ConnectionId,
+    /// Handle to the client's connection.
     pub handle: Arc<ConnectionHandle<T>>,
 }
 
@@ -101,7 +104,9 @@ where
         room_name: &'static str,
     },
 
+    /// Request to list all the clients connected to the server.
     ListUsers {
+        /// Channel to send the response to.
         response_to: oneshot::Sender<Vec<ClientInfo<T>>>,
     },
 
