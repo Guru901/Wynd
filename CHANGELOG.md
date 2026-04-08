@@ -2,6 +2,10 @@
 
 ## [0.12.1] - 2026-04-08
 
+- Forgot to add the docs
+
+## [0.12.0] - 2026-04-08
+
 - Remove not needed code
 - Made the `wynd.clients` api better
 - Added handle.clients() function
