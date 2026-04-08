@@ -43,9 +43,3 @@ with-ripress = [
     "dep:http-body-util",
     "dep:ripress",
 ]
-bench = []
-
-[[bench]]
-name = "wynd_benches"
-harness = false
-required-features = ["bench"]
