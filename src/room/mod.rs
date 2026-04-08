@@ -4,10 +4,12 @@
 //! which you obtain from `handle::ConnectionHandle::to()` to target a named
 //! room. Rooms allow grouping clients and broadcasting text/binary messages.
 use crate::handle::ConnectionHandle;
+use crate::wynd::ConnectionId;
 use std::fmt::Debug;
 use std::{collections::HashMap, sync::Arc};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc::Sender;
+use tokio::sync::oneshot;
 
 /// A collection of connections identified by a room name.
 ///
@@ -74,6 +76,15 @@ where
     }
 }
 
+#[derive(Debug)]
+pub struct ClientInfo<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Debug + Send + 'static,
+{
+    pub id: ConnectionId,
+    pub handle: Arc<ConnectionHandle<T>>,
+}
+
 /// Events used by the room system to coordinate joins, leaves, and messages.
 #[derive(Debug)]
 pub enum RoomEvents<T>
@@ -88,6 +99,10 @@ where
         handle: ConnectionHandle<T>,
         /// Target room name to join.
         room_name: &'static str,
+    },
+
+    ListUsers {
+        response_to: oneshot::Sender<Vec<ClientInfo<T>>>,
     },
 
     /// Request to List all the rooms joined by client with given id.
