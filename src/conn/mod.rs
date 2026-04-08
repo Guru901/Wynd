@@ -64,7 +64,7 @@ use crate::{
     room::RoomEvents,
     types::{BinaryMessageEvent, CloseEvent, TextMessageEvent},
     wynd::BoxFuture,
-    ClientRegistery,
+    ClientRegistry,
 };
 
 /// Type alias for close event handlers.
@@ -197,7 +197,7 @@ where
     /// State of the current connection.
     pub(crate) state: Arc<tokio::sync::Mutex<ConnState>>,
 
-    clients: ClientRegistery<T>,
+    clients: ClientRegistry<T>,
 
     /// The connection handle created during connection setup.
     /// This is set by the server and used throughout the connection lifecycle.
@@ -289,7 +289,7 @@ where
     ///
     /// This ensures that the `Broadcaster` created from this connection's handle
     /// targets all active clients managed by the server, not a per-connection list.
-    pub(crate) fn set_clients_registry(&mut self, clients: ClientRegistery<T>) {
+    pub(crate) fn set_clients_registry(&mut self, clients: ClientRegistry<T>) {
         self.clients = clients;
     }
 

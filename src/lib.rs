@@ -87,10 +87,6 @@ use crate::{conn::Connection, handle::ConnectionHandle, wynd::ConnectionId};
 /// for managing individual WebSocket connections.
 pub mod conn;
 
-#[cfg(feature = "bench")]
-/// Utilities used exclusively by the Criterion benchmarks.
-pub mod bench_support;
-
 /// Internal test utilities and integration tests.
 mod tests;
 
@@ -119,7 +115,7 @@ pub mod handle;
 /// messages to all members in a room.
 pub mod room;
 
-pub(crate) type ClientRegistery<T> =
+pub(crate) type ClientRegistry<T> =
     Arc<tokio::sync::Mutex<HashMap<ConnectionId, (Arc<Connection<T>>, Arc<ConnectionHandle<T>>)>>>;
 pub(crate) mod middleware;
 

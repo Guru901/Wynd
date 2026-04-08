@@ -6,13 +6,16 @@
 //! See `wynd::Wynd` and `conn::Connection` for where these are produced.
 use std::{fmt::Debug, net::SocketAddr, sync::Arc};
 
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    sync::oneshot,
+};
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use crate::{
     conn::ConnState,
-    room::{RoomEvents, RoomMethods},
-    ClientRegistery,
+    room::{ClientInfo, RoomEvents, RoomMethods},
+    ClientRegistry,
 };
 
 /// Handle for interacting with a WebSocket connection.
@@ -230,6 +233,32 @@ where
         Ok(())
     }
 
+    pub async fn clients(&self) -> Result<Vec<ClientInfo<T>>, std::io::Error> {
+        let (tx, rx) = oneshot::channel();
+
+        self.room_sender
+            .send(RoomEvents::ListUsers { response_to: tx })
+            .await
+            .map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to list all users: {}", e),
+                )
+            })?;
+
+        match rx.await {
+            Ok(clients) => {
+                return Ok(clients);
+            }
+            Err(err) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to list all users: {}", err.to_string()),
+                ));
+            }
+        };
+    }
+
     /// Returns the remote address of this connection.
     ///
     /// This can be used for logging, access control, and connection
@@ -329,19 +358,10 @@ where
     where
         S: Into<String>,
     {
-        #[cfg(feature = "bench")]
-        {
-            let _ = text.into();
-            return Ok(());
-        }
-
-        #[cfg(not(feature = "bench"))]
-        {
-            let text = text.into();
-            let mut writer = self.writer.lock().await;
-            futures::SinkExt::send(&mut *writer, Message::Text(text.into())).await?;
-            Ok(())
-        }
+        let text = text.into();
+        let mut writer = self.writer.lock().await;
+        futures::SinkExt::send(&mut *writer, Message::Text(text.into())).await?;
+        Ok(())
     }
 
     /// Joins the specified room.
@@ -465,18 +485,9 @@ where
     /// }
     /// ```
     pub async fn send_binary(&self, data: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
-        #[cfg(feature = "bench")]
-        {
-            let _ = data;
-            return Ok(());
-        }
-
-        #[cfg(not(feature = "bench"))]
-        {
-            let mut writer = self.writer.lock().await;
-            futures::SinkExt::send(&mut *writer, Message::Binary(data.into())).await?;
-            Ok(())
-        }
+        let mut writer = self.writer.lock().await;
+        futures::SinkExt::send(&mut *writer, Message::Binary(data.into())).await?;
+        Ok(())
     }
 
     /// Closes the WebSocket connection gracefully.
@@ -537,7 +548,7 @@ where
 {
     pub(crate) current_client_id: u64,
     /// Shared registry of all active connections and their handles.
-    pub(crate) clients: ClientRegistery<T>,
+    pub(crate) clients: ClientRegistry<T>,
 }
 
 impl<T> Clone for Broadcaster<T>

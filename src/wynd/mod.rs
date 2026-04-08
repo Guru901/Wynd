@@ -73,9 +73,9 @@ use tokio_tungstenite::accept_async;
 use crate::conn::{ConnState, Connection};
 use crate::handle::{Broadcaster, ConnectionHandle};
 use crate::middleware::{self, Middleware, Next};
-use crate::room::{Room, RoomEvents};
+use crate::room::{ClientInfo, Room, RoomEvents};
 use crate::types::WyndError;
-use crate::ClientRegistery;
+use crate::ClientRegistry;
 use std::fmt::Debug;
 
 #[cfg(feature = "with-ripress")]
@@ -186,7 +186,7 @@ where
     /// Each entry contains an Arc-wrapped Connection and its corresponding ConnectionHandle.
     /// Connections are added when established and should be removed when closed.
     /// Protected by a tokio Mutex for thread-safe access.
-    pub clients: ClientRegistery<T>,
+    pub clients: ClientRegistry<T>,
 
     /// Registry of active rooms for group messaging.
     ///
@@ -710,7 +710,7 @@ impl Wynd<TcpStream> {
     fn handle_communication(
         mut room_receiver: Receiver<RoomEvents<TcpStream>>,
         rooms: Arc<tokio::sync::Mutex<Vec<Room<TcpStream>>>>,
-        clients: ClientRegistery<TcpStream>,
+        clients: ClientRegistry<TcpStream>,
     ) {
         tokio::spawn(async move {
             while let Some(room_data) = room_receiver.recv().await {
@@ -906,6 +906,7 @@ impl Wynd<TcpStream> {
                             }
                         }
 
+                        let clients = Arc::clone(&clients);
                         let clients_guard = clients.lock().await;
                         if let Some((_, handle)) =
                             clients_guard.iter().find(|(_, h)| h.0.id() == client_id)
@@ -940,6 +941,22 @@ impl Wynd<TcpStream> {
 
                         for index in rooms_to_remove.iter().rev() {
                             rooms_guard.remove(*index);
+                        }
+                    }
+                    RoomEvents::ListUsers { response_to } => {
+                        let clients = Arc::clone(&clients);
+                        let clients = clients.lock().await;
+                        let mut clients_info = Vec::new();
+
+                        for client in clients.iter() {
+                            clients_info.push(ClientInfo {
+                                id: client.0.clone(),
+                                handle: Arc::clone(&client.1 .1),
+                            })
+                        }
+
+                        if let Err(_) = response_to.send(clients_info) {
+                            eprintln!("Failed to send ListUsers response: receiver dropped");
                         }
                     }
                 }
