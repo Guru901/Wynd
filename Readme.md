@@ -6,16 +6,24 @@ A simple, fast, and developer-friendly WebSocket library for Rust.
 [![Documentation](https://img.shields.io/docsrs/wynd)](https://docs.rs/wynd)
 [![License](https://img.shields.io/crates/l/wynd)](LICENSE)
 
+> **Project Status**
+>
+> Wynd is not abandoned. The project is currently considered feature-complete, meaning the core functionality and goals I originally had for it have been implemented.
+>
+> I'm not actively adding new features just for the sake of keeping development moving. That doesn't mean the project is frozen or that I'm no longer maintaining it.
+>
+> If you run into something that needs attention or have something worth improving, feel free to open an issue or a PR. I'll take a look and continue maintaining Wynd as needed.
+
 ## Features
 
-- **🚀 Simple API**: Easy-to-use event-driven API with async/await support
-- **⚡ High Performance**: Built on Tokio for excellent async performance
-- **🛡️ Type Safety**: Strongly typed message events and error handling
-- **🧩 Middleware Support**: Plug in async middleware for authentication, logging, rate-limiting, and more
-- **🔧 Developer Experience**: Comprehensive documentation and examples
-- **🔄 Connection Management**: Automatic connection lifecycle management
-- **📡 Real-time Ready**: Perfect for chat apps, games, and live dashboards
-- **🌐 HTTP Integration**: Optional ripress integration for combined HTTP + WebSocket servers
+* **Simple API**: Easy-to-use event-driven API with async/await support
+* **High Performance**: Built on Tokio for excellent async performance
+* **Type Safety**: Strongly typed message events and error handling
+* **Middleware Support**: Plug in async middleware for authentication, logging, rate-limiting, and more
+* **Developer Experience**: Comprehensive documentation and examples
+* **Connection Management**: Automatic connection lifecycle management
+* **Real-time Ready**: Perfect for chat apps, games, and live dashboards
+* **HTTP Integration**: Optional Ripress integration for combined HTTP + WebSocket servers
 
 ## Getting Started
 
@@ -129,24 +137,31 @@ async fn main() {
 
 ## Documentation
 
-- **Getting Started**: `docs/getting-started.md`
-- **API Reference**: `docs/api-reference/`
-- **Examples**: `docs/example/`
-- **Tutorial**: `docs/tutorial/`
-- **Guides**: `docs/guides/`
+* **Getting Started**: `docs/getting-started.md`
+* **API Reference**: `docs/api-reference/`
+* **Examples**: `docs/example/`
+* **Tutorial**: `docs/tutorial/`
+* **Guides**: `docs/guides/`
 
 ## Performance
 
-- **Async by Design**: Full async/await support with Tokio runtime
-- **Concurrent Connections**: Each connection runs in its own task
-- **Efficient Message Handling**: Minimal overhead for message processing
-- **Zero-Cost Middleware**: Add as many middleware as you like with minimal overhead
+* **Async by Design**: Full async/await support with Tokio runtime
+* **Concurrent Connections**: Each connection runs in its own task
+* **Efficient Message Handling**: Minimal overhead for message processing
+* **Zero-Cost Middleware**: Add as many middleware as you like with minimal overhead
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+Wynd is feature-complete, but it is still maintained.
+
+There isn't a constant stream of new features because there isn't a need to add features simply for the sake of activity. The project has reached the point I originally wanted it to reach.
+
+If something needs to be changed or improved, contributions are welcome. Open an issue or submit a PR and I'll take a look.
+
+A repository not receiving frequent commits does not necessarily mean it has been abandoned. Wynd is complete, and I'm still open to maintaining it.
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-Wynd v0.11.1 - Production Ready ✨
+
+Wynd v0.11.1 - Feature-complete and maintained.
