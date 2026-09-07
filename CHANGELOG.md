@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.12.2] - 2026-09-07
+
+- Updated the README with clearer usage and integration guidance
+- Updated the `rand` dependency to 0.8.8
+
 ## [0.12.1] - 2026-04-08
 
 - Forgot to add the docs
@@ -205,6 +210,10 @@
 
 - Added feature flag for ripress
 - Added `wynd.handler()` for ripress
+
+## [0.3.2] - 2025-09-04
+
+- Fixed cyclic dependency issues when using `with-ripress`
 
 ## [0.3.1] - 2025-08-28
 
